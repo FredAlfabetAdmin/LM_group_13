@@ -1,25 +1,136 @@
-# Learning Machines Robobo
+# Full project example
 
-This is the GitHub repository for the Learning Machines course.
+This is the example you are expected to use as a project template. The structure is the same as [basic_ros_setup](https://github.com/ci-group/learning_machines_robobo/tree/master/examples/ros_basic_setup), it contains the same dockerfile and some of the same scripts and packages, but it contains a lot more stuff on top of that. First of all, it contains the same `start_coppelia_sim` script as [coppelia_sim_tutorial](https://github.com/ci-group/learning_machines_robobo/tree/master/examples/coppelia_sim_tutorial), meaning you should also copy-past CoppeliaSim to here, such that `./CoppeliaSim` exists. It also contains the `setup.bash` from [hardware_setup](https://github.com/ci-group/learning_machines_robobo/tree/master/examples/hardware_setup) that you should configure to have the `ROS_MASTER_URI`.
 
-If you're a student, everything you need for the course itself is in the [examples](https://github.com/ci-group/learning_machines_robobo/tree/master/examples) directory. It contains all the documentation and code you need. Just clone this repository, cd into examples, and start at that readme, which will guide you through the whole thing.
+### Running the code that is there
 
-### There is an issue / bug with the code.
+As you find it, this example is a fully working system. Currently, it contains a script that simply connects to the robot, be it hardware or software, and then runs through the motions it supports: moving itself and the phone around, getting input from the camera and the IR sensors, and a whole bunch more.
 
-If you find a problem with the code, please create an issue [here](https://github.com/ci-group/learning_machines_robobo/issues) on the GitHub repository. For this, please make sure you include these three things:
+#### Running with hardware
 
-- Some example code with instructions on how to run and include it. This should preferably be a minimum failing example, just linking to your entire assignment won't cut it. You might think this is a lot of extra work, but the amount of times I personally found a bug in my own code by trying to construct an example like this is staggering. It's a really good test to make sure that what you think is happening is actually what is happening. Also, it helps whoever wants to fix it understand what is going wrong.
-- The behavior you would expect from this minimum failing example. No "it should work," be specific in what output you expect.
-- The actual behavior you observed, and that anyone can observe by running the example code you provided. Here, also provide the platform you ran it under, in case it cannot be reproduced.
+To run it with hardware, you have to set everything up in the same way as the [hardware_setup](https://github.com/ci-group/learning_machines_robobo/tree/master/examples/hardware_setup), which is to say you have to confirm you're on the same (non-public) network with the phone and your laptop/desktop, and have to put the `ROS_MASTER_URI` (`http://[Adress shown on top left]:11311`) in `setup.bash`.
 
-## Contributing / maintaining
+After this, you can run with the flag `--hardware`. If you did everything correctly, you'll then see the robot move around and do a bunch of stuff.
 
-If you are working on the project, you should notice that all code you write yourself should be in `maintained/`. All code in the examples is automatically generated (or, well, copied over) from there. This architecture is quite weird, but I couldn't find a better option. Because everything is ROS, it is hard to distribute the individual packages without having to teach students how to install ROS packages, making the code too much of a black box. Alternatively, having only one template (e.g. only `full_project_setup`), which is what was here before, has issues with documentation, as that makes it quite a large project to just dump students into. With the way it currently is, everything is in one place while maintaining, but students can still cd from example to example to explore the codebase.
+```sh
+bash ./scripts/run.sh --hardware
+```
 
-To work on the project, first, `cd` into maintained. Here, you can edit the code and test it. Once you are confident it is good, you can type `python3 ./build.py`, this will copy all files over to the right examples. If you created new scripts or catkin packages, this build script is also where to make the needed changes to always copy over the files to the appropriate examples. The build script will ask for confirmation for every file it wants to delete. If you're confident everything is backed up, you can just run it like `yes | python3 ./build.py` to answer yes to all prompts.
+```ps1
+.\scripts\run.ps1 --hardware
+```
 
-After you have built, it is important to go through the READMEs in the examples, and assert all of them are still correct.
+#### Running with simulation
 
-If you change anything with the docker setup or run scripts it is important to test everything under Linux (X11), Windows, and MacOS before pushing to master, making sure the behavior is consistent.
+To run it with the simulation, you have to, first of all, make sure that CoppeliaSim is installed under `./CoppeliaSim` like in the [coppelia_sim_tutorial](https://github.com/ci-group/learning_machines_robobo/tree/master/examples/coppelia_sim_tutorial). After that, you have to update `setup.bash` again, this time updating `COPPELIA_SIM_IP` with the IP of the computer you're running CoppeliaSim on, which is to say your own. We have to do this because the container (again, think of it as a small separate computer), has to connect to your computer to find it. Technically, though, this also means you can run the simulation on another system as this package.
 
-If you changed the Lua scripts, make sure to update all affected models and scenes to match. This is quite tedious, and if you find a way to automate it, please let me know.
+To get your own IP address, you have to run `Get-NetIPAddress` on Windows PowerShell, but this gives you a bunch of extra stuff. To get _only_ your IP address, you can run:
+
+```ps1
+(Get-NetIPAddress | Where-Object { $_.AddressState -eq "Preferred" -and $_.ValidLifetime -lt "24:00:00" }).IPAddress
+```
+
+similarly, on Unix, you can run `hostname -I` to get all the information, but the following to get only the IP you are looking for:
+
+```sh
+hostname -I | awk '{print $1}'
+```
+
+After you have updated `setup.bash` you can start CoppeliaSim with the `start_coppelia_sim.sh` script like in that example:
+
+```sh
+bash ./scripts/start_coppelia_sim.sh ./scenes/Robobo_Scene.ttt
+```
+
+```ps1
+.\scripts\start_coppelia_sim.ps1 .\scense\Robobo_Scene.ttt
+```
+
+Once all this is started, you can use the run scripts to run the example with the `--simulation` flag:
+
+```sh
+bash ./scripts/run.sh --simulation
+```
+
+```ps1
+.\scripts\run.ps1 --simulation
+```
+
+## Project structure
+
+Everything here is structured as follows (`tree -a --dirsfirst`):
+
+```
+├── catkin_ws
+│   ├── src
+│   │   ├── learning_machines
+│   │   │   ├── scripts
+│   │   │   │   └── learning_robobo_controller.py
+│   │   │   ├── src
+│   │   │   │   └── learning_machines
+│   │   │   │       ├── __init__.py
+│   │   │   │       └── test_actions.py
+│   │   │   ├── CMakeLists.txt
+│   │   │   ├── package.xml
+│   │   │   └── setup.py
+│   │   ├── robobo_interface
+│   │   │   ├── src
+│   │   │   │   └── robobo_interface
+│   │   │   │       ├── utils
+│   │   │   │       │   ├── __init__.py
+│   │   │   │       │   └── sets.py
+│   │   │   │       ├── base.py
+│   │   │   │       ├── datatypes.py
+│   │   │   │       ├── hardware.py
+│   │   │   │       ├── __init__.py
+│   │   │   │       └── simulation.py
+│   │   │   ├── CMakeLists.txt
+│   │   │   ├── package.xml
+│   │   │   └── setup.py
+│   │   ├── learning_machines_prey
+│   │   │   └── ...
+│   │   ├── coppelia_sim
+│   │   │   └── ...
+│   │   ├── data_files
+│   │   │   └── ...
+│   │   └── robobo_msgs
+│   │       └── ...
+│   └── .catkin_workspace
+├── models
+│   ├── robobo-pusher.ttm
+│   └── robobo.ttm
+├── scenes
+│   ├── arena_approach.ttt
+│   ├── arena_obstacles.ttt
+│   ├── arena_push_easy.ttt
+│   ├── arena_push_hard.ttt
+│   └── Robobo_Scene.ttt
+├── scripts
+│   ├── convert_line_endings.py
+│   ├── entrypoint.bash
+│   ├── run.ps1
+│   ├── run.sh
+│   ├── setup.bash
+│   ├── start_coppelia_sim.ps1
+│   └── start_coppelia_sim.sh
+├── results
+│   └── ...
+├── Dockerfile
+└── requirements.txt
+```
+
+All the scripts in `./script` should be familiar, with the `convert_line_endings.py` from the [docker tutorial](https://github.com/ci-group/learning_machines_robobo/tree/master/examples/docker_tutorial), `start_coppelia_sim.*` from the [CoppeliaSim tutorial](https://github.com/ci-group/learning_machines_robobo/tree/master/examples/coppelia_sim_tutorial), the `entrypoint.bash` explained in the [basic_ros_setup](https://github.com/ci-group/learning_machines_robobo/tree/master/examples/ros_basic_setup) tutorial and the `setup.bash` and `run.*` from that same tutorial you used to run the code. `results/` should also be familiar to you, it is the exact same as it was in `basic_ros_setup`.
+
+The scenes and models are kind of new. You'll be familiar with the concept of them from the CoppeliaSim tutorial, but there are more of them now. The new different ones each are for the different assignments of this course. You can look around in them if you want.
+
+The many packages in `catkin_ws` will be unfamiliar, however. In [basic_ros_setup](https://github.com/ci-group/learning_machines_robobo/tree/master/examples/ros_basic_setup) you saw one or two, but, now, there are a ton more. First of all, I should tell you that for most of these, you don't have to open them or understand them at all. They just exist. The two you should pay attention to are `robobo_interface` and `learning_machines`.
+
+`learning_machines` is the package you are expected to work in. You'll end up removing all the code that is there in favor of the stuff you need for the assignments. Currently, it contains the code needed for the little movement you saw when running the code, which you can remove when working on the project. It has the exact same structure as the [basic_ros_setup](https://github.com/ci-group/learning_machines_robobo/tree/master/examples/ros_basic_setup), but this time **the script that is being run is `learning_robobo_controller.py`, and the directory you should write all your actual code in is `src/learning_machines`, with an example file at `test_actions.py`.**
+
+`robobo_interface` contains, well, all the code that is the reason for the fact that we are running in Docker and using CoppeliaSim and all that. You don't need to edit this code, or even understand it, but you have to use it. The code is documented with docstrings inside the files themselves, but I'll still give you a quick overview:
+
+- `hardware.py` contains the final layer of code that talks to the actual robot. It exports one class, `HardwareRobobo`, which, when instantiated, has functions like `move` and `read_orientation`, which you can call to do stuff with the robot.
+- `simulation.py` contains the final layer of code that talks to the robot in CoppeliaSim. It exports one class `SimulationRobobo`, which, when instantiated, has most of the same functions as `HardwareRobobo` plus some more. Most importantly, functions like `start_simulation` and `stop_simulation` work with the simulation itself, but also functions like `nr_food_collected` for assignment 3.
+- `base.py` contains an interface (or, technically, a template method pattern, but who cares), `IRobobo` to abstract over hardware and software. You'll find abstract definitions of all functions that are on both the hardware and the software and a few template methods like `move_blocking` that work for both with a generic implementation. These are all the functions that work for both hardware and software, and so, these are the functions you should use when training your robot, to make sure that, at least in theory, the behavior of your real Robobo will be similar to the one in the simulation.
+
+If you understood all this, you know everything you should know, and can now get actually finally started with the course itself.
