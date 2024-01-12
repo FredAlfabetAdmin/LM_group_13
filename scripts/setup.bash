@@ -1,14 +1,4 @@
-ip_address=$(hostname -I | awk '{print $1}')
-echo $ip_address
-echo $GLOBAL_IP_ADRESS
-
-# # Check if the IP address is not empty
-# if [ -n "$ip_address" ]; then
-#     echo "Detected IP address: $ip_address"
-#     # Now you can use $ip_address in your script
-# else
-#     echo "Unable to detect IP address."
-# fi
+#!/usr/bin/env bash
 
 # replace localhost with the port you see on the smartphone
 export ROS_MASTER_URI="http://localhost:11311"

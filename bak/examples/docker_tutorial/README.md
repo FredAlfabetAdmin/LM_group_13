@@ -2,7 +2,7 @@
 
 If you have never touched it before, Docker is going to be a bit overwhelming to use, especially if you're on Windows and never touched a Unix shell before. But, don't worry, though there is a lot to learn about docker, you're not going to need a lot of it.
 
-## What is Docker?
+## What is Docker, and why do we use it?
 
 Docker is the professional standard for running code. It creates an isolated environment that allows you to have reproducible systems to run in.
 
@@ -24,7 +24,7 @@ During the installation process, you can use all default settings, and you can c
 
 #### Installing Docker Desktop on Windows.
 
-To install Docker Desktop on Windows, first things first, you're going to need to install [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install) (Windows Subsystem for Linux), for which you need to [enable hardware virtualization](https://docs.docker.com/desktop/troubleshoot/topics/#virtualization) in your BIOS and Windows Control Panel. The supported versions are Windows 10 Home and Pro (22H2 or higher) and Windows 11 Home and Pro (21H2 or higher) If WSL is not installed, docker will install, but it won't work.
+To install Docker Desktop on Windows, first things first, you're going to need to install [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install) (Windows Subsystem for Linux), for which you need to [enable hardware virtualization](https://docs.docker.com/desktop/troubleshoot/topics/#virtualization) in your BIOS and Windows Control Panel. The supported versions are Windows 10 Home and Pro (22H2 or higher) and Windows 11 Home and Pro (21H2 or higher) If WSL is not installed, docker will install, but it won't work. We're not explicitly _using_ WSL, and you never have to open a WSL terminal. It's just that Docker needs it.
 
 The full official installation guide can be found [at the Docker docs](https://docs.docker.com/desktop/install/windows-install/).
 
@@ -50,19 +50,19 @@ To use docker, type the command `docker` in the command line. This is the only c
 
 From this entire docker desktop thing you installed, you don't need any of its GUI elements. We only care about the command line executables.
 
-If that command works, we need to make sure that the Docker Deamon (`docker.service` & `containerd.service`) is running before we can do anything else. This is something you need to do whenever you want to run any docker command.
+If that command works, we need to make sure that the Docker Deamon is running before we can do anything else. This is something you need to do whenever you want to run any docker command.
 
-On linux, you can start the docker daemon by running:
+If you installed Docker Desktop, you should just open the GUI of Docker Desktop. We are not _using_ this gui, but opening it (and then closing it,) makes sure it is running.
+
+On linux, if you did not install the Docker Desktop, you can start the docker daemon by running:
 
 ```sh
 systemctl start docker
 ```
 
-If you instead installed Docker Desktop, you should just open the GUI of Docker Desktop. We are not _using_ this gui, but opening it (and then closing it,) makes sure it is running.
-
 If you want to, you can, at this point, go through the [Getting Started Guide](https://docs.docker.com/get-started/). You don't have to, but this is the easiest place to go through if you, at any point, feel like you're stuck on Docker and want to learn how it works.
 
-### What you need to know
+### Basic docker commands: run and build
 
 There are three things you need to know `docker build`, `Dockerfile`, and `docker run`.
 
@@ -87,7 +87,7 @@ RUN apt-get -y update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 
 Notice how we don't need to specify `sudo`, we're in a separate computer that is being run specifically for this task: we can run everything as root.
 
-Create a file called `Dockerfile` (no extension), and paste this code in. Then, run:
+Create a file called `Dockerfile` (no extension), and paste this code in. Then, run on your own OS's terminal:
 
 ```sh
 docker build --tag my_first_container .
@@ -97,7 +97,7 @@ This will create this small computer under the name (tag) `my_first_container`, 
 
 If you installed Docker Desktop, it will once again ask you to log in after building a container. Again, you can ignore this.
 
-We can then run the container with:
+We can then run the container with (again on your main terminal):
 
 ```sh
 docker run my_first_container
@@ -154,7 +154,7 @@ Again, you build this new container with with `docker build --tag my_first_conta
 
 You now know almost everything you need to know. There are two more things that might end up fooling you. The first: debugging.
 
----
+### Debugging code inside containers
 
 Let's say you made a typo in the Dockerfile, and wrote `COPY ./README.md ./REAMDE.md` instead, and let's say you don't spot this. How do you debug this?
 
@@ -179,13 +179,15 @@ docker run -it my_first_container bash
 
 This will run the container in interactive mode with `-it` (Technically, it stands for something else, but don't bother about that), and it will launch a single command on startup: `bash`.
 
-Now, you are spawned inside a bash shell in your container. You can `apt-get install`, you can `cat`, `ls`, and `cd` around the place, and do anything else you might want to do for troubleshooting. This is the previously mentioned point where being good at a Linux command line really pays off. The more debugging you can do while in here, the less cumbersome working with containers is. To exit a container you started like this, type `exit` and hit enter.
+Now, you are spawned inside a bash shell in your container. You can `apt-get install`, you can `cat`, `ls`, and `cd` around the place, and do anything else you might want to do for troubleshooting. This is the previously mentioned point where being good at a Linux command line really pays off. The more debugging you can do while in here, the less cumbersome working with containers is. To exit a container you started like this and return to the terminal of your own OS, type `exit` and hit enter.
 
 This is a general pattern for debugging docker containers. You remove everything that breaks, you build and then run in interactive mode to troubleshoot what is going on.
 
+### Managing running containers
+
 Similarly, for debugging, you might find yourself in a situation where the requested ports are already occupied. This means that the container is already running.
 
-To see all running docker containers type:
+To see all running docker containers type on the terminal of your own OS:
 
 ```sh
 docker ps
@@ -197,7 +199,7 @@ After that, you can shut down a container by typing:
 docker container stop "container id"
 ```
 
----
+### Passing commandline arguments to the command we run inside the container
 
 The last thing that still needs to be explained is how to pass command line arguments from your shell to the docker container. This is quite complicated, but, luckily enough, you only need to understand the oversimplified version: instead of `CMD`, we are going to be using `ENTRYPOINT`.
 
@@ -217,7 +219,37 @@ docker run my_first_container "Hello World"
 
 As you can see, all arguments after the container name are passed to the entrypoint before running.
 
----
+### Docker permission issues.
+
+If you're on macOS or Linux, you might find yourself with docker permission issues. Errors like: `ERROR: failed to solve: ros:noetic: error getting credentials - err: exit status 1, out: `, or having to always call docker with `sudo`. There are several things you might need to do to fix this. The first command you should try running on your terminal is:
+
+```sh
+ls -la $HOME | grep .docker
+```
+
+If that says the file is not owned by your user (e.g. you don't see something resembling your username in the output), you might be able to fix your issues by running:
+
+```sh
+sudo chown -R $(id -u):$(id -g) $HOME/.docker
+```
+
+If that doesn't work. You should really just google and, if you cannot find anything, ask. Docker can be hard to install, and this not working might happen depending on how you specifically set up your own computer.
+
+### Running with Apple Sillicon
+
+Running docker with a machine on Apple sillicon, so far, has just worked. But, later on in the course it won't. Because of that, in `full_project_setup`, we provide you with another script: `run_apple_sillicon.zsh`, in which we add one flag: `--platform linux/amd64`, which specifies to `buildx` to run or build the container under the `x86` (amd64) CPU architecture (and virtualise that when needed).
+
+To get all this running, first of all, enable experimental features in docker desktop. It's in the settings somewhere, but they move it around so much it's hard to tell you exactly where to look.
+
+After you have enabled experimental features (and maybe restart your machine after that,) you can run in your terminal:
+
+```zsh
+docker buildx create --use
+```
+
+After that, the `--platform linux/amd64` flag is going to work on your system, and you can use the `run_apple_sillicon.zsh` script to run insetad of the `run.sh` scripts. Macs with intel processors are not affected by this.
+
+### Looking ahead
 
 In `run.sh` / `run.ps1`, which are the scripts you'll use to start docker for the full project setup, we use a bunch more flags and things. These, you don't have to worry about. However, here is a quick summary of what they are, and how we use them:
 

@@ -18,4 +18,5 @@ if __name__ == "__main__":
         rob = SimulationRobobo()
     else:
         raise ValueError(f"{sys.argv[1]} is not a valid argument.")
+
     run_all_actions(rob)

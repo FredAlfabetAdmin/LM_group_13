@@ -68,3 +68,17 @@ def run_all_actions(rob: IRobobo):
 
     if isinstance(rob, SimulationRobobo):
         rob.stop_simulation()
+
+def run_to_block_and_stop(rob: IRobobo):
+    if isinstance(rob, SimulationRobobo):
+        rob.play_simulation()
+
+    for i in range(50):
+        print(rob.read_irs())
+        rob.move_blocking(50, 50, 125)
+        rob.sleep(0.25)
+    rob.reset_wheels()
+    rob.sleep(1)
+
+    if isinstance(rob, SimulationRobobo):
+        rob.stop_simulation()
