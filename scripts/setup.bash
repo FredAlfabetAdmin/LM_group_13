@@ -1,6 +1,4 @@
 ip_address=$(hostname -I | awk '{print $1}')
-echo $ip_address
-echo $GLOBAL_IP_ADRESS
 
 # # Check if the IP address is not empty
 # if [ -n "$ip_address" ]; then
