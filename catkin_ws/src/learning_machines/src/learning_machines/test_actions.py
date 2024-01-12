@@ -70,13 +70,26 @@ def run_all_actions(rob: IRobobo):
         rob.stop_simulation()
 
 def run_to_block_and_stop(rob: IRobobo):
+    print('\t'.join(['BackL', 'BackR', 'FrontL', 'FrontR', 'FrontC', 'FrontRR', 'BackC', 'FrontLL']))
     if isinstance(rob, SimulationRobobo):
         rob.play_simulation()
 
-    for i in range(50):
-        print(rob.read_irs())
+    thresh = 1000
+
+    while True:
+        irs = rob.read_irs()
+        print('\t'.join([str(x) for x in irs]))
+        if irs[2] > thresh or irs[3] > thresh or irs[4] > thresh or irs[5] > thresh or irs[7] > thresh:
+            break
         rob.move_blocking(50, 50, 125)
         rob.sleep(0.25)
+
+
+    input('>> blocking: ')
+    # for i in range(50):
+    #     print(rob.read_irs())
+    #     rob.move_blocking(50, 50, 125)
+    #     rob.sleep(0.25)
     rob.reset_wheels()
     rob.sleep(1)
 
