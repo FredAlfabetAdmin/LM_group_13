@@ -4,14 +4,18 @@ source /root/catkin_ws/ip.sh
 rm /root/catkin_ws/ip.sh
 
 cd /root/catkin_ws
+find /root/catkin_ws -type f -wholename '**/*.py' -exec sed -i 's/\r$//' {} \;
 
-source /opt/ros/noetic/setup.bash
-catkin_make
+bash -c "source /opt/ros/noetic/setup.bash && catkin_make"
+
+# source /opt/ros/noetic/setup.bash
+# catkin_make
+ls /root/catkin_ws/devel
 
 chmod -R u+x /root/catkin_ws/
 
-source /root/catkin_ws/devel/setup.bash
 source /root/setup.bash
+source /root/catkin_ws/devel/setup.bash
 
 echo "Starting ROS"
 

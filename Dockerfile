@@ -31,6 +31,9 @@ RUN python3 -m pip install -r /requirements.txt && rm /requirements.txt
 COPY ./scripts/entrypoint.bash /root/entrypoint.bash
 COPY ./scripts/setup.bash /root/setup.bash
 COPY ./scripts/convert_line_endings.py /root/convert_line_endings.py
+WORKDIR /root/
+RUN sed -i 's/\r$//' *.bash;
+# RUN chmod -R u+x /root/convert_line_endings.py
 # RUN python3 /root/convert_line_endings.py "*.bash" "**/*.py"
 RUN chmod -R u+x /root/entrypoint.bash
 
