@@ -3,3 +3,4 @@ devel
 *.pyc
 __pycache__/*
 CoppeliaSim/*
+catkin_ws/src/CMakeLists.txt
