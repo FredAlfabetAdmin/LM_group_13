@@ -2,7 +2,7 @@
 import sys
 
 from robobo_interface import SimulationRobobo, HardwareRobobo
-from learning_machines import run_to_block_and_stop
+from learning_machines import run_to_block_and_stop, run_to_block_and_stop
 
 
 if __name__ == "__main__":
@@ -19,4 +19,5 @@ if __name__ == "__main__":
     else:
         raise ValueError(f"{sys.argv[1]} is not a valid argument.")
 
+    # run_to_block_and_stop(rob)
     run_to_block_and_stop(rob)

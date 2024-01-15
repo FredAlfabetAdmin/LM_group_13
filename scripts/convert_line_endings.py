@@ -37,6 +37,5 @@ def run(paths: List[Path]) -> None:
         with path.open("w", encoding="utf-8", newline="\n") as f:
             f.write(intext)
 
-
 if __name__ == "__main__":
     run(parse_args(sys.argv[1:]))

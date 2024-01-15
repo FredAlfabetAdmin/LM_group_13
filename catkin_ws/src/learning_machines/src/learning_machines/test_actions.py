@@ -25,7 +25,6 @@ def test_move_and_wheel_reset(rob: IRobobo):
     rob.sleep(1)
     print("after reset: ", rob.read_wheels())
 
-
 def test_sensors(rob: IRobobo):
     print("IRS data: ", rob.read_irs())
     image = rob.get_image_front()
@@ -84,12 +83,12 @@ def run_to_block_and_stop(rob: IRobobo):
         rob.move_blocking(50, 50, 125)
         rob.sleep(0.25)
 
-
-    input('>> blocking: ')
     # for i in range(50):
+    #     # print('\t'.join([str(x) for x in rob.read_irs()]))
     #     print(rob.read_irs())
     #     rob.move_blocking(50, 50, 125)
     #     rob.sleep(0.25)
+    rob.sleep(20)
     rob.reset_wheels()
     rob.sleep(1)
 

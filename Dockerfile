@@ -20,23 +20,23 @@ RUN apt-get update -y && apt-get install ffmpeg libsm6 libxext6 ros-noetic-openc
 COPY ./requirements.txt /requirements.txt
 RUN python3 -m pip install -r /requirements.txt && rm /requirements.txt
 
-# This cd's into a new `catkin_ws` directory anyone starting the shell will end up in.
-WORKDIR /root/catkin_ws
+# # This cd's into a new `catkin_ws` directory anyone starting the shell will end up in.
+# WORKDIR /root/catkin_ws
 
-# This copies the local catkin_ws into the docker container, and then runs catkin_make on it.
-COPY ./catkin_ws .
-RUN bash -c "source /opt/ros/noetic/setup.bash && catkin_make"
+# # This copies the local catkin_ws into the docker container, and then runs catkin_make on it.
+# COPY ./catkin_ws .
+# RUN bash -c "source /opt/ros/noetic/setup.bash && catkin_make"
 
 # Set up the envoirement to actually run the code
-COPY ./scripts/entrypoint.bash ./entrypoint.bash
-COPY ./scripts/setup.bash ./setup.bash
-COPY ./scripts/convert_line_endings.py ./convert_line_endings.py
-RUN python3 ./convert_line_endings.py "*.bash" "**/*.py"
-RUN chmod -R u+x /root/catkin_ws/
+COPY ./scripts/entrypoint.bash /root/entrypoint.bash
+COPY ./scripts/setup.bash /root/setup.bash
+COPY ./scripts/convert_line_endings.py /root/convert_line_endings.py
+# RUN python3 /root/convert_line_endings.py "*.bash" "**/*.py"
+RUN chmod -R u+x /root/entrypoint.bash
 
 # Uncomment these lines and comment out the last line for debugging
 # RUN echo 'source /opt/ros/noetic/setup.bash' >> /root/.bashrc
 # RUN echo 'source /root/catkin_ws/devel/setup.bash' >> /root/.bashrc
 # RUN echo 'source /root/catkin_ws/setup.bash' >> /root/.bashrc
 
-ENTRYPOINT ["./entrypoint.bash"]
+ENTRYPOINT ["/root/entrypoint.bash"]
