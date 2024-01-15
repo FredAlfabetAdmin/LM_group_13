@@ -1,3 +1,13 @@
+# How to run with the improvements.
+Make sure the docker build line is uncommented on first time use (or on mayor edits to the docker build file).
+Then run on Windows:
+```.\scripts\run.ps1 --simulation
+```
+And on Unix:
+```sudo sh ./scripts/run.sh --simulation
+```
+Then you can comment the build line since we can now just interface with the docker image (aka just running it without needing to build it every time).
+
 # Full project example
 
 This is the example you are expected to use as a project template. The structure is the same as [basic_ros_setup](https://github.com/ci-group/learning_machines_robobo/tree/master/examples/ros_basic_setup), it contains the same dockerfile and some of the same scripts and packages, but it contains a lot more stuff on top of that. First of all, it contains the same `start_coppelia_sim` script as [coppelia_sim_tutorial](https://github.com/ci-group/learning_machines_robobo/tree/master/examples/coppelia_sim_tutorial), meaning you should also copy-past CoppeliaSim to here, such that `./CoppeliaSim` (or `coppeliaSim.app`) exists. It also contains the `setup.bash` from [hardware_setup](https://github.com/ci-group/learning_machines_robobo/tree/master/examples/hardware_setup) that you should configure to have the `ROS_MASTER_URI`.
