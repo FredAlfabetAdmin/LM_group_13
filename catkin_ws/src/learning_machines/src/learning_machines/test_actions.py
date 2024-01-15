@@ -10,6 +10,8 @@ from robobo_interface import (
     SimulationRobobo,
 )
 
+import datetime
+
 
 def test_emotions(rob: IRobobo):
     rob.set_emotion(Emotion.HAPPY)
@@ -70,15 +72,59 @@ def run_all_actions(rob: IRobobo):
         rob.stop_simulation()
 
 def run_to_block_and_stop(rob: IRobobo):
+    print('\t'.join(['BackL', 'BackR', 'FrontL', 'FrontR', 'FrontC', 'FrontRR', 'BackC', 'FrontLL']))
     if isinstance(rob, SimulationRobobo):
         rob.play_simulation()
 
-    for i in range(50):
-        print(rob.read_irs())
-        rob.move_blocking(50, 50, 125)
+    thresh = 150
+
+    while True:
+        irs = rob.read_irs()
+        print('\t'.join([str(x) for x in irs]))
+        if irs[2] > thresh or irs[3] > thresh or irs[4] > thresh or irs[5] > thresh or irs[7] > thresh:
+            break
+        rob.move_blocking(20, 20, 200)
         rob.sleep(0.25)
-    rob.reset_wheels()
-    rob.sleep(1)
+
+
+    # for i in range(50):
+    #     print(rob.read_irs())
+    #     rob.move_blocking(50, 50, 125)
+    #     rob.sleep(0.25)
+    print("test")
+
+    if isinstance(rob, SimulationRobobo):
+        rob.stop_simulation()
+        
+def stop_when_detect(rob: IRobobo):
+    if isinstance(rob, SimulationRobobo):
+        rob.play_simulation()
+
+    thresh = 100
+    
+    rob.move(10, 10, 20000)
+    
+    old_irs = [1,1,1,1,1,1,1,1]
+    
+    while True:
+        irs = rob.read_irs()
+        #print(irs)
+        #print(old_irs)
+        if irs != old_irs:
+            now = datetime.datetime.now()
+            print(now, '\t'.join([str(x) for x in irs]))
+            if irs[2] > thresh or irs[3] > thresh or irs[4] > thresh or irs[5] > thresh or irs[7] > thresh:
+                break
+            old_irs = irs
+
+    rob.move(0,0,2000)
+    
+    #while True:
+    #    print(rob.read_irs())
+    #    rob.move_blocking(50, 50, 125)
+    #    rob.sleep(0.25)
+    #rob.reset_wheels()
+    #rob.sleep(1)
 
     if isinstance(rob, SimulationRobobo):
         rob.stop_simulation()
