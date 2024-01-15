@@ -2,3 +2,4 @@ build
 devel
 *.pyc
 __pycache__/*
+CoppeliaSim/*
