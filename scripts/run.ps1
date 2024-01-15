@@ -15,10 +15,10 @@
 param([string]$mode)
 
 # Get IP address
-$ipAddress = (Get-NetIPAddress | Where-Object { $_.AddressState -eq "Preferred" -and $_.ValidLifetime -lt "24:00:00" }).IPAddress
+$ipAddress = (Get-NetIPAddress | Where-Object { $_.AddressState -eq "Preferred" -and $_.ValidLifetime -lt "24:00:00" }).IPAddress[-1]
 
 # Build Docker image
-docker build --tag lm --build-arg IP_ADRESS=$ipAddress -f Dockerfile.windows .
+docker build --tag lm --build-arg IP_ADRESS=$ipAddress .
 
 # Create IP script
 Set-Content -Path "./catkin_ws/ip.sh" -Value "#!/bin/bash`nexport GLOBAL_IP_ADRESS=`"$ipAddress`""
