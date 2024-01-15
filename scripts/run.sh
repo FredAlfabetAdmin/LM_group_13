@@ -2,7 +2,7 @@
 ip_address=$(hostname -I | awk '{print $1}')
 
 set -xe
-docker build --tag lm . --build-arg IP_ADRESS=$ip_address
+docker build --tag lm . --build-arg IP_ADRESS=$ip_address -f Dockerfile.linux
 
 # Mounting to a directory that does not exist creates it.
 # Mounting to relative paths works since docker engine 23

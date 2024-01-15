@@ -6,12 +6,8 @@ rm /root/catkin_ws/ip.sh
 cd /root/catkin_ws
 find /root/catkin_ws -type f -wholename '**/*.py' -exec sed -i 's/\r$//' {} \;
 
-bash -c "source /opt/ros/noetic/setup.bash && catkin_make"
-
-# source /opt/ros/noetic/setup.bash
-# catkin_make
-ls /root/catkin_ws/devel
-
+source /opt/ros/noetic/setup.bash
+catkin_make
 chmod -R u+x /root/catkin_ws/
 
 source /root/setup.bash

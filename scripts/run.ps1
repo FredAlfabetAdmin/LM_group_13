@@ -12,23 +12,19 @@
 # # Mounting to relative paths works since docker engine 23
 # docker run -t --rm -p 45100:45100 -p 45101:45101 -v ./results:/root/results learning_machines $PSBoundParameters["p1"]
 
-param(
-    [string]$mode
-)
+param([string]$mode)
 
 # Get IP address
 $ipAddress = (Get-NetIPAddress | Where-Object { $_.AddressState -eq "Preferred" -and $_.ValidLifetime -lt "24:00:00" }).IPAddress
 
 # Build Docker image
-docker build --tag lm . --build-arg IP_ADRESS=$ipAddress
+docker build --tag lm --build-arg IP_ADRESS=$ipAddress -f Dockerfile.windows .
 
 # Create IP script
 Set-Content -Path "./catkin_ws/ip.sh" -Value "#!/bin/bash`nexport GLOBAL_IP_ADRESS=`"$ipAddress`""
 
-Write-Output $(pwd)
-
 # Run Docker container
-docker run -t --rm -p 45100:45100 -p 45101:45101 -v $(pwd)/results:/root/results -v $(pwd)/catkin_ws:/root/catkin_ws lm $mode
+docker run -t --rm -p 45100:45100 -p 45101:45101 -v $pwd\results:/root/results -v $pwd\catkin_ws:/root/catkin_ws lm $mode
 
 # Change ownership of results directory
 # This assumes the equivalent of "sudo chown "$USER":"$USER" ./results -R" in PowerShell

@@ -28,7 +28,7 @@ RUN python3 -m pip install -r /requirements.txt && rm /requirements.txt
 # RUN bash -c "source /opt/ros/noetic/setup.bash && catkin_make"
 
 # Set up the envoirement to actually run the code
-COPY ./scripts/entrypoint.bash /root/entrypoint.bash
+COPY ./scripts/entrypoint.linux.bash /root/entrypoint.bash
 COPY ./scripts/setup.bash /root/setup.bash
 COPY ./scripts/convert_line_endings.py /root/convert_line_endings.py
 WORKDIR /root/
