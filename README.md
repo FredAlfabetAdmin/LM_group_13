@@ -1,10 +1,12 @@
 # How to run with the improvements.
 Make sure the docker build line is uncommented on first time use (or on mayor edits to the docker build file).
 Then run on Windows:
-```.\scripts\run.ps1 --simulation
+```
+.\scripts\run.ps1 --simulation
 ```
 And on Unix:
-```sudo sh ./scripts/run.sh --simulation
+```
+sudo sh ./scripts/run.sh --simulation
 ```
 Then you can comment the build line since we can now just interface with the docker image (aka just running it without needing to build it every time).
 
