@@ -1,4 +1,5 @@
 import cv2
+import time
 
 from data_files import FIGRURES_DIR
 from robobo_interface import (
@@ -100,7 +101,7 @@ def stop_when_detect(rob: IRobobo):
     if isinstance(rob, SimulationRobobo):
         rob.play_simulation()
 
-    thresh = 100
+    thresh = 80
     
     rob.move(10, 10, 20000)
     
@@ -108,16 +109,18 @@ def stop_when_detect(rob: IRobobo):
     
     while True:
         irs = rob.read_irs()
-        #print(irs)
         #print(old_irs)
         if irs != old_irs:
             now = datetime.datetime.now()
             print(now, '\t'.join([str(x) for x in irs]))
             if irs[2] > thresh or irs[3] > thresh or irs[4] > thresh or irs[5] > thresh or irs[7] > thresh:
+                rob.move(0,0,1000)
+                print("!! Detected something !! >> Stopping")
                 break
             old_irs = irs
 
-    rob.move(0,0,2000)
+    now = datetime.datetime.now()
+    print(now, "Stoppingtttttttttt")
     
     #while True:
     #    print(rob.read_irs())
