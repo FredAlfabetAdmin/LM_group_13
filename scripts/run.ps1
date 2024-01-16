@@ -13,7 +13,15 @@
 # docker run -t --rm -p 45100:45100 -p 45101:45101 -v ./results:/root/results learning_machines $PSBoundParameters["p1"]
 
 param([string]$mode)
-Start-Process powershell -ArgumentList " -Command & { .\scripts\start_coppelia_sim.ps1 .\scenes\Robobo_Scene.ttt }"
+
+if ($mode -eq "--simulation") {
+    Write-Host "Running in simulation mode. Starting coppeliaSim..."
+	Start-Process powershell -ArgumentList " -Command & { .\scripts\start_coppelia_sim.ps1 .\scenes\Robobo_Scene.ttt }" -WindowStyle Hidden
+	}
+elseif ($mode -ne "--hardware") {
+    Write-Host "Invalid mode or no mode specified: $mode. Either --simulation or --hardware"
+    # Handle invalid mode here, or exit the script
+}
 
 # Get IP address
 $ipAddress = (Get-NetIPAddress | Where-Object { $_.AddressState -eq "Preferred" -and $_.ValidLifetime -lt "24:00:00" }).IPAddress
@@ -39,5 +47,6 @@ docker run -t --rm -p 45100:45100 -p 45101:45101 -v $pwd\results:/root/results -
 #         $_ | Set-Acl $_.Path
 #     }
 # }
-
-Stop-Process -Name "coppeliaSim" -Force
+if ($mode -eq "--simulation") {
+	Stop-Process -Name "coppeliaSim" -Force
+	}
