@@ -20,7 +20,7 @@ if ($mode -eq "--simulation") {
 	}
 elseif ($mode -ne "--hardware") {
     Write-Host "Invalid mode or no mode specified: $mode. Either --simulation or --hardware"
-    # Handle invalid mode here, or exit the script
+	Exit
 }
 
 # Get IP address

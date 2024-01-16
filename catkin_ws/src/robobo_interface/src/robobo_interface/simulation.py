@@ -95,7 +95,7 @@ class SimulationRobobo(IRobobo):
             )
             sys.exit(1)
 
-        ping.ping(self._connection_id,10)
+        ping.ping(self._connection_id, 20)
         self._logger(
             f"""Connected to remote CoppeliaSim API server at port {api_port}
             Connected to robot: {self._identifier}"""
