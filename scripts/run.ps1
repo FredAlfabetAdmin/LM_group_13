@@ -13,12 +13,17 @@
 # docker run -t --rm -p 45100:45100 -p 45101:45101 -v ./results:/root/results learning_machines $PSBoundParameters["p1"]
 
 param([string]$mode)
+Start-Process powershell -ArgumentList " -Command & { .\scripts\start_coppelia_sim.ps1 .\scenes\Robobo_Scene.ttt }"
 
 # Get IP address
-$ipAddress = (Get-NetIPAddress | Where-Object { $_.AddressState -eq "Preferred" -and $_.ValidLifetime -lt "24:00:00" }).IPAddress[-1]
+$ipAddress = (Get-NetIPAddress | Where-Object { $_.AddressState -eq "Preferred" -and $_.ValidLifetime -lt "24:00:00" }).IPAddress
 
 # Build Docker image
-docker build --tag lm --build-arg IP_ADRESS=$ipAddress .
+#docker build --tag lm --build-arg IP_ADRESS=$ipAddress .
+Write-Host $ipAddress
+
+# Build Docker image
+#docker build --tag lm --build-arg IP_ADRESS=$ipAddress .
 
 # Create IP script
 Set-Content -Path "./catkin_ws/ip.sh" -Value "#!/bin/bash`nexport GLOBAL_IP_ADRESS=`"$ipAddress`""
@@ -34,3 +39,5 @@ docker run -t --rm -p 45100:45100 -p 45101:45101 -v $pwd\results:/root/results -
 #         $_ | Set-Acl $_.Path
 #     }
 # }
+
+Stop-Process -Name "coppeliaSim" -Force
