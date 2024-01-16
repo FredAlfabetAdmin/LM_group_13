@@ -543,6 +543,20 @@ class SimulationRobobo(IRobobo):
             self._connection_id, self._base, simConst.simx_opmode_buffer
         )
         return detection and what == self._base
+    
+    def get_target_position(self):
+        """Get the position of the base to deliver food at.
+
+        This only works in the simulation.
+        Trivially doesn't work when the simulation does not have a base.
+        """
+        if self._target is None:
+            raise ValueError("Connected scene does not appear to have a base")
+
+        pos = sim.simxGetObjectPosition(
+            self._connection_id, self._target, -1, simConst.simx_opmode_blocking
+        )
+        return Position(*pos)
 
     def _block_string(self, blockid: int) -> str:
         """Return some unique string based on the identifier and the blockid
@@ -566,3 +580,12 @@ class SimulationRobobo(IRobobo):
             )
         except CoppeliaSimApiError:
             self._base = None
+
+        try:
+            self._target = sim.simxGetObjectHandle(
+                self._connection_id,
+                "/Target",
+                simConst.simx_opmode_blocking,
+            )
+        except CoppeliaSimApiError:
+            self._target = None

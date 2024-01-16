@@ -1,4 +1,5 @@
 import torch
+import math
 from torch import nn
 
 class LSTM(nn.Module):
@@ -25,12 +26,16 @@ class LSTM(nn.Module):
         output = self.output_activation(output)
         return output
     
-def eucl_loss_fn(prediction, target):
-    return 1
 
-network = LSTM()
-network.train()
-loss_fn = eucl_loss_fn
+def eucl_loss_fn(point1, point2):
+    x1, y1 = point1
+    x2, y2 = point2
+    distance = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+    return distance
+
+# network = LSTM()
+# network.train()
+# loss_fn = eucl_loss_fn
 
 '''    
     prediction_batch = network(X_batch)  # forward pass
