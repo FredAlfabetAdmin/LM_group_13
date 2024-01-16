@@ -1,45 +1,29 @@
 FROM ros:noetic
 
-# Makking sure our ROS node has ports to connect trough.
-# These are the ports specified in `rospy.init_node()` in hardware.py
 EXPOSE 45100
 EXPOSE 45101
 
-RUN apt-get update -y && apt-get install -y python3 python3-pip git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update -y 
+RUN apt-get install -y python3 python3-pip git
+RUN apt-get install ffmpeg libsm6 libxext6 ros-noetic-opencv-apps -y
+RUN apt-get install -y firefox x11vnc xvfb
+RUN echo "exec firefox" > ~/.xinitrc && chmod +x ~/.xinitrc
+CMD ["v11vnc", "-create", "-forever"]
+# RUN apt-get install xcb build-essential libgl1-mesa-dev libxkbcommon-x11-0 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0 libxcb-icccm4 xauth -y 
+RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-ARG IP_ADRESS
-ENV GLOBAL_IP_ADRESS $IP_ADRESS
+COPY ./CoppeliaSim_Edu_V4_6_0_rev16_Ubuntu20_04.tar.xz ./CoppeliaSim_Edu_V4_6_0_rev16_Ubuntu20_04.tar.xz
+RUN tar -xf CoppeliaSim_Edu_V4_6_0_rev16_Ubuntu20_04.tar.xz
+RUN mv CoppeliaSim_Edu_V4_6_0_rev16_Ubuntu20_04 /root/coppeliasim
 
-# Install dependencies.
-
-# These are package requirements for the dependencies.
-# You should add to these if you add python packages that require c libraries to be installed
-RUN apt-get update -y && apt-get install ffmpeg libsm6 libxext6 ros-noetic-opencv-apps -y && rm -rf /var/lib/apt/lists/*
-
-# The python3 interpreter is already being shilled by ros:noetic, so no need for a venv.
 COPY ./requirements.txt /requirements.txt
 RUN python3 -m pip install -r /requirements.txt && rm /requirements.txt
 
-# # This cd's into a new `catkin_ws` directory anyone starting the shell will end up in.
-# WORKDIR /root/catkin_ws
-
-# # This copies the local catkin_ws into the docker container, and then runs catkin_make on it.
-# COPY ./catkin_ws .
-# RUN bash -c "source /opt/ros/noetic/setup.bash && catkin_make"
-
-# Set up the envoirement to actually run the code
 COPY ./scripts/entrypoint.bash /root/entrypoint.bash
 COPY ./scripts/setup.bash /root/setup.bash
 COPY ./scripts/convert_line_endings.py /root/convert_line_endings.py
 WORKDIR /root/
 RUN sed -i 's/\r$//' *.bash;
-# RUN chmod -R u+x /root/convert_line_endings.py
-# RUN python3 /root/convert_line_endings.py "*.bash" "**/*.py"
 RUN chmod -R u+x /root/entrypoint.bash
-
-# Uncomment these lines and comment out the last line for debugging
-# RUN echo 'source /opt/ros/noetic/setup.bash' >> /root/.bashrc
-# RUN echo 'source /root/catkin_ws/devel/setup.bash' >> /root/.bashrc
-# RUN echo 'source /root/catkin_ws/setup.bash' >> /root/.bashrc
 
 ENTRYPOINT ["/root/entrypoint.bash"]
