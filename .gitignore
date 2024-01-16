@@ -4,3 +4,5 @@ devel
 __pycache__/*
 CoppeliaSim/*
 catkin_ws/src/CMakeLists.txt
+.DS_Store
+sed*

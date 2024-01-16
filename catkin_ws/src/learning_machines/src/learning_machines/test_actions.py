@@ -1,3 +1,4 @@
+import time
 import cv2
 
 from data_files import FIGRURES_DIR
@@ -54,6 +55,7 @@ def test_sim(rob: SimulationRobobo):
 
 
 def run_all_actions(rob: IRobobo):
+
     if isinstance(rob, SimulationRobobo):
         rob.play_simulation()
     test_emotions(rob)
@@ -67,6 +69,59 @@ def run_all_actions(rob: IRobobo):
 
     if isinstance(rob, SimulationRobobo):
         rob.stop_simulation()
+
+
+def test_sens(rob: IRobobo):
+    print('\t'.join(['BackL', 'BackR', 'FrontL', 'FrontR', 'FrontC', 'FrontRR', 'BackC', 'FrontLL']))
+
+    while True:
+        irs = rob.read_irs()
+        print('\t'.join([str(x) for x in irs]))
+    
+def run_obstacle_avoidance(rob: IRobobo):
+    
+    obstacle_threshold = 100
+
+    while True:
+        irs = rob.read_irs()
+        print('\t'.join([str(x) for x in irs]))
+
+        # Check if any infrared sensor detects an obstacle
+        if any(val > obstacle_threshold for val in irs):
+            print("Obstacle detected! Adjusting direction...")
+            left_sensors = [irs[7], irs[2], irs[4]]
+            right_sensors = [irs[4], irs[3], irs[5]]
+            # calculate the difference in sensor readings for left and right sides
+            left_side = sum(left_sensors) / 3  # average left side sensors
+            print(f'left side = {left_side}')
+
+            right_side = sum(right_sensors) / 3  # average right side sensors
+            print(f'right side = {right_side}')
+
+            difference = left_side - right_side
+
+            # calculate wheel speeds for turning
+            left_speed = int(50 + difference)  
+            print(f'left speed = {left_speed}')
+            right_speed = int(50 - difference) 
+            print(f'right speed = {right_speed}')
+
+            # keep speeds within valid range
+            left_speed = max(-128, min(127, left_speed))
+            right_speed = max(-128, min(127, right_speed))
+
+            # for debugging purpose
+            # print(f"Adjusted Speeds: Left={left_speed}, Right={right_speed}")
+            print('going to make a turn')
+
+            # move the robot with adjusted wheel speeds for turning
+            rob.move_blocking(left_speed, right_speed, 200)  # adjust duration for a longer turn
+            time.sleep(0.25)
+
+        else:
+            # if no obstacle detected, move forward
+            rob.move_blocking(50, 50, 125)
+            time.sleep(0.25)
 
 def run_to_block_and_stop(rob: IRobobo):
     print('\t'.join(['BackL', 'BackR', 'FrontL', 'FrontR', 'FrontC', 'FrontRR', 'BackC', 'FrontLL']))

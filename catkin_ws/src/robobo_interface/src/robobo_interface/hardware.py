@@ -428,6 +428,7 @@ class HardwareRobobo(IRobobo):
     def _tilt_callback(self, ros_data: Int16) -> None:
         self._tilt = ros_data.data
 
+#TODO: test this on hardware
     def _accel_callback(self, ros_data: Accel) -> None:
         self._accel = Acceleration(
             x=ros_data.linear.x,
