@@ -79,7 +79,8 @@ def test_sens(rob: IRobobo):
         print('\t'.join([str(x) for x in irs]))
     
 def run_obstacle_avoidance(rob: IRobobo):
-    
+    if isinstance(rob, SimulationRobobo):
+        rob.play_simulation()
     obstacle_threshold = 100
 
     while True:
@@ -87,7 +88,8 @@ def run_obstacle_avoidance(rob: IRobobo):
         print('\t'.join([str(x) for x in irs]))
 
         # Check if any infrared sensor detects an obstacle
-        if any(val > obstacle_threshold for val in irs):
+        irs2 = irs[1:6] + [irs[7]]
+        if any(val > obstacle_threshold for val in irs2):
             print("Obstacle detected! Adjusting direction...")
             left_sensors = [irs[7], irs[2], irs[4]]
             right_sensors = [irs[4], irs[3], irs[5]]
@@ -107,8 +109,8 @@ def run_obstacle_avoidance(rob: IRobobo):
             print(f'right speed = {right_speed}')
 
             # keep speeds within valid range
-            left_speed = max(-128, min(127, left_speed))
-            right_speed = max(-128, min(127, right_speed))
+            left_speed = max(-100, min(100, left_speed))
+            right_speed = max(-100, min(100, right_speed))
 
             # for debugging purpose
             # print(f"Adjusted Speeds: Left={left_speed}, Right={right_speed}")
@@ -122,6 +124,8 @@ def run_obstacle_avoidance(rob: IRobobo):
             # if no obstacle detected, move forward
             rob.move_blocking(50, 50, 125)
             time.sleep(0.25)
+    if isinstance(rob, SimulationRobobo):
+        rob.stop_simulation()
 
 def run_to_block_and_stop(rob: IRobobo):
     print('\t'.join(['BackL', 'BackR', 'FrontL', 'FrontR', 'FrontC', 'FrontRR', 'BackC', 'FrontLL']))

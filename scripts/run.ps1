@@ -16,7 +16,7 @@ param([string]$mode)
 
 if ($mode -eq "--simulation") {
     Write-Host "Running in simulation mode. Starting coppeliaSim..."
-	Start-Process powershell -ArgumentList " -Command & { .\scripts\start_coppelia_sim.ps1 .\scenes\Robobo_Scene.ttt }" -WindowStyle Hidden
+	Start-Process powershell -ArgumentList " -Command & { .\scripts\start_coppelia_sim.ps1 .\scenes\Robobo_Scene.ttt }" #-WindowStyle Hidden
 	}
 elseif ($mode -ne "--hardware") {
     Write-Host "Invalid mode or no mode specified: $mode. Either --simulation or --hardware"
@@ -48,5 +48,5 @@ docker run -t --rm -p 45100:45100 -p 45101:45101 -v $pwd\results:/root/results -
 #     }
 # }
 if ($mode -eq "--simulation") {
-	Stop-Process -Name "coppeliaSim" -Force
+	#Stop-Process -Name "coppeliaSim" -Force
 	}
