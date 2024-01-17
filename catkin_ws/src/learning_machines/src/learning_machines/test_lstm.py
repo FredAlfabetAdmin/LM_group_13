@@ -35,7 +35,9 @@ class RobFN(torch.autograd.Function):
         input, = ctx.saved_tensors
         grad_input = None
         if ctx.needs_input_grad[0]:
-            grad_input = torch.full((3,), grad_output[1]) #Use 1 for the rob_pos grad
+            grad_input = torch.full((3,), grad_output[1]) #Use 1 for the rob_pos grad, *100 since the output of the model is like that
+            # grad_input = grad_output[1].clone()
+            print(grad_input, input)
         return grad_input, None
 
 def run_lstm_sim(rob: IRobobo):
@@ -43,10 +45,10 @@ def run_lstm_sim(rob: IRobobo):
         rob.play_simulation()
     print('connected')
     # Define the model and set it into train mode, together with the optimizer
-    network = LSTM(14, 128, 16, 4, 1)
+    network = LSTM(14, 128, 16, 3, 1)
     network.train()
     loss_fn = eucl_loss_fn
-    optimizer = optim.SGD(params=network.parameters(), lr=0.1)
+    optimizer = optim.Adam(params=network.parameters(), lr=0.1)
     rnd_pos = True
 
     print('Started training')
@@ -69,7 +71,7 @@ def run_lstm_sim(rob: IRobobo):
             p = network(x) #Do the forward pass
 
             # Take the wheel output and map it to neg to pos and the time to sigmoid.
-            p = torch.concat([torch.unsqueeze(nn.Tanh(p[0]), 0), torch.unsqueeze(nn.Tanh(p[1]), 0), torch.unsqueeze(nn.Sigmoid(p[2]), 0)])
+            p = torch.concat([torch.unsqueeze(nn.functional.tanh(p[0]), 0), torch.unsqueeze(nn.functional.tanh(p[1]), 0), torch.unsqueeze(nn.functional.sigmoid(p[2]), 0)])
             p[0] = torch.trunc(p[0]*100) #Multiply the output of the model (as regression now) and truncate
             p[1] = torch.trunc(p[1]*100) #Multiply the output of the model (as regression now) and truncate
             p[2] = torch.trunc(p[2]*500) #Multiply the output of the model (as regression now) and truncate
