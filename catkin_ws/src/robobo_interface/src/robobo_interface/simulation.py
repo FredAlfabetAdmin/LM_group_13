@@ -558,6 +558,16 @@ class SimulationRobobo(IRobobo):
         )
         return Position(*pos)
 
+    def set_target_position(self, position: Position) -> None:
+        """Set the position of the Robobo in the simulation"""
+        sim.simxSetObjectPosition(
+            self._connection_id,
+            self._target,
+            -1,
+            [position.x, position.y, position.z],
+            simConst.simx_opmode_blocking,
+        )
+
     def _block_string(self, blockid: int) -> str:
         """Return some unique string based on the identifier and the blockid
         to make sure they don't overlap

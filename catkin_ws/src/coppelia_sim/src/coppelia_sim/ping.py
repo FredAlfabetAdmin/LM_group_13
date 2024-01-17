@@ -9,7 +9,7 @@ class ApiTimeout(Exception):
     pass
 
 
-def ping(client_id: int, timeout_seconds: int = 120) -> int:
+def ping(client_id: int, timeout_seconds: int = 10) -> int:
     """Wait for CoppeliaSim to respond
     Performs exponential backoff with harmonic prevention
 
