@@ -5,7 +5,7 @@ ip_address=$(hostname -I | awk '{print $1}')
 echo $ip_address
 
 set -xe
-# docker build --tag lm .
+docker build --tag lm .
 
 echo "#!/bin/bash\nexport GLOBAL_IP_ADRESS="$ip_address"" > ./catkin_ws/ip.sh
 
