@@ -95,18 +95,18 @@ def run_obstacle_avoidance(rob: IRobobo):
             right_sensors = [irs[4], irs[3], irs[5]]
             # calculate the difference in sensor readings for left and right sides
             left_side = sum(left_sensors) / 3  # average left side sensors
-            print(f'left side = {left_side}')
+            #print(f'left side = {left_side}')
 
             right_side = sum(right_sensors) / 3  # average right side sensors
-            print(f'right side = {right_side}')
+            #print(f'right side = {right_side}')
 
             difference = left_side - right_side
 
             # calculate wheel speeds for turning
             left_speed = int(50 + difference)  
-            print(f'left speed = {left_speed}')
+            #print(f'left speed = {left_speed}')
             right_speed = int(50 - difference) 
-            print(f'right speed = {right_speed}')
+            #print(f'right speed = {right_speed}')
 
             # keep speeds within valid range
             left_speed = max(-100, min(100, left_speed))
@@ -117,12 +117,13 @@ def run_obstacle_avoidance(rob: IRobobo):
             print('going to make a turn')
 
             # move the robot with adjusted wheel speeds for turning
-            rob.move_blocking(left_speed, right_speed, 200)  # adjust duration for a longer turn
+            rob.move_blocking(left_speed, right_speed, 100)
+            #rob.move_blocking(100, 100, 500)  # adjust duration for a longer turn
             time.sleep(0.25)
 
         else:
             # if no obstacle detected, move forward
-            rob.move_blocking(50, 50, 125)
+            rob.move_blocking(90, 90, 125)
             time.sleep(0.25)
     if isinstance(rob, SimulationRobobo):
         rob.stop_simulation()
