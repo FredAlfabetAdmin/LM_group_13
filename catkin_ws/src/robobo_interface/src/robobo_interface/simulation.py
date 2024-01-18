@@ -568,6 +568,22 @@ class SimulationRobobo(IRobobo):
             simConst.simx_opmode_blocking,
         )
 
+    def api_plug(self, command: list):
+        sim.simxCallScriptFunction(
+            self._connection_id, 
+            'remoteApiCommandServer', 
+            sim.sim_scripttype_childscript, 
+            'executeCodeString', 
+            [], 
+            [], 
+            command, 
+            '', 
+            sim.simx_opmode_blocking
+        )
+
+    def create_primitiveshape(self):
+        self.api_plug(['sim.createPrimitiveShape(sim.primitiveshape_cuboid, {0.2, 0.2, 0.5}, 0)'])
+
     def _block_string(self, blockid: int) -> str:
         """Return some unique string based on the identifier and the blockid
         to make sure they don't overlap

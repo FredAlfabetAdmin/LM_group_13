@@ -2,31 +2,31 @@ import torch
 import math
 from torch import nn
 
-# class LSTM(nn.Module):
-#     def __init__(self, input_dim: int, embedding_dim: int, hidden_dim: int, output_dim: int, b_size: int):
-#         super().__init__()
-#         self.embedding = nn.Embedding(input_dim, embedding_dim)
-
-#         self.lstm = nn.LSTM(embedding_dim, hidden_dim)
-#         self.h_to_y = nn.Linear(hidden_dim, output_dim)
-#         self.output_activation = nn.Tanh()
-#         self.hidden = torch.zeros((output_dim, b_size, hidden_dim))
-#         self.cstate = torch.zeros((output_dim, b_size, hidden_dim))
-    
-#     def forward(self, text):
-#         # text dim: [sentence length, batch size]
-#         embedded = self.embedding(text)
-#         # embedded dim: [sentence length, batch size, embedding dim]
-#         embedded = torch.swapaxes(embedded, 0, 1)
-#         output, (hidden, cstate) = self.rnn(embedded, (self.hidden, self.cstate))
-#         self.hidden = hidden
-#         self.cstate = cstate
-#         output = torch.swapaxes(output, 0, 1)
-#         output = self.h_to_y(output)
-#         output = self.output_activation(output)
-#         return output
-
 class LSTM(nn.Module):
+    def __init__(self, input_dim: int, embedding_dim: int, hidden_dim: int, output_dim: int, b_size: int):
+        super().__init__()
+        self.embedding = nn.Embedding(input_dim, embedding_dim)
+
+        self.lstm = nn.LSTM(embedding_dim, hidden_dim)
+        self.h_to_y = nn.Linear(hidden_dim, output_dim)
+        self.output_activation = nn.Tanh()
+        self.hidden = torch.zeros((output_dim, b_size, hidden_dim))
+        self.cstate = torch.zeros((output_dim, b_size, hidden_dim))
+    
+    def forward(self, text):
+        # text dim: [sentence length, batch size]
+        embedded = self.embedding(text)
+        # embedded dim: [sentence length, batch size, embedding dim]
+        embedded = torch.swapaxes(embedded, 0, 1)
+        output, (hidden, cstate) = self.rnn(embedded, (self.hidden, self.cstate))
+        self.hidden = hidden
+        self.cstate = cstate
+        output = torch.swapaxes(output, 0, 1)
+        output = self.h_to_y(output)
+        output = self.output_activation(output)
+        return output
+
+class NN(nn.Module):
     def __init__(self, input_dim: int, embedding_dim: int, hidden_dim: int, output_dim: int, b_size: int):
         super().__init__()
         self.linear = nn.Linear(input_dim, hidden_dim)

@@ -94,3 +94,10 @@ def run_to_block_and_stop(rob: IRobobo):
 
     if isinstance(rob, SimulationRobobo):
         rob.stop_simulation()
+
+def test_func(rob):
+    if isinstance(rob, SimulationRobobo):
+        rob.play_simulation()
+    rob.create_primitiveshape()
+    if isinstance(rob, SimulationRobobo):
+        rob.stop_simulation()

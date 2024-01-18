@@ -50,7 +50,73 @@ class RobFN(torch.autograd.Function):
             grad_input = torch.full((1,), grad_output[1]) #Use 1 for the rob_pos grad, *100 since the output of the model is like that
         return grad_input, None
 
-def run_lstm_sim(rob: IRobobo):
+def run_lstm_regression(rob: IRobobo):
+    if isinstance(rob, SimulationRobobo):
+        rob.play_simulation()
+    print('connected')
+    # Define the model and set it into train mode, together with the optimizer
+    network = LSTM(14, 128, 16, 4, 1)
+    loss_fn = eucl_loss_fn
+    # Eval model in hw
+    if not isinstance(rob, SimulationRobobo):
+        network.load_state_dict(torch.load('./model.ckpt'))
+        network.eval()
+        with torch.no_grad():
+            for _ in range(200): #Take max 75 steps per round
+                robfn = RobFN.apply #Define the custom grad layer
+                # Get the input data
+                orientation = rob.read_orientation()
+                accelleration = rob.read_accel()
+                x = torch.tensor([x*100000 for x in rob.read_irs()] + [orientation.yaw, orientation.pitch, orientation.roll] + [accelleration.x, accelleration.y, accelleration.z], dtype=torch.float32)
+                p = network(x) #Do the forward pass
+                p = torch.argmax(nn.functional.softmax(p, dim=0))
+                move_robobo(p, rob)
+        return
+    network.train()
+    optimizer = optim.Adam(params=network.parameters(), lr=0.01)
+
+    print('Started training')
+    for round_ in range(20): #Reset the robobo and target 10 times with or without random pos
+        # if rnd_pos:
+        if round_ > 3: #Only create random positions after 3 rounds
+            rob.set_position(Position((random.random()*2.4)-1.2, (random.random()*2.4)-1.2, 0.03), Orientation(-90, -90, -90))
+            rob.set_target_position(Position((random.random()*2.4)-1.2, (random.random()*2.4)-1.2, 0.2))
+        rob.play_simulation()
+        start = time.time()
+        for _ in range(150): #Take max 75 steps per round
+            optimizer.zero_grad() #Clear the gradients in the optimizer
+            robfn = RobFN.apply #Define the custom grad layer
+            # Get the input data
+            orientation = rob.read_orientation()
+            accelleration = rob.read_accel()
+            # Make the input tensor (or the input data)
+            x = torch.tensor(rob.read_irs() + [orientation.yaw, orientation.pitch, orientation.roll] + [accelleration.x, accelleration.y, accelleration.z], dtype=torch.float32)
+            
+            p = network(x) #Do the forward pass
+            # # Take the wheel output and map it to neg to pos and the time to sigmoid.
+            p = torch.concat([torch.unsqueeze(nn.functional.tanh(p[0]), 0), torch.unsqueeze(nn.functional.tanh(p[1]), 0), torch.unsqueeze(nn.functional.sigmoid(p[2]), 0)])
+            p[0] = torch.trunc(p[0]*100) #Multiply the output of the model (as regression now) and truncate
+            p[1] = torch.trunc(p[1]*100) #Multiply the output of the model (as regression now) and truncate
+            p[2] = torch.trunc(p[2]*500) #Multiply the output of the model (as regression now) and truncate
+            
+            rob_pos = robfn(p, *(rob,)) #Calculate the custom robotics gradients
+            # Get the positions and make them tensors
+            target_pos = rob.get_target_position()
+            target_pos = torch.tensor([target_pos.x, target_pos.y], dtype=torch.float32, requires_grad=True)
+            loss = torch.pow(loss_fn(target_pos, rob_pos), 2) #Calculate the euclidean distance
+            # loss = loss + ((time.time() - start)*0.15) #Could be used to give a penalty for time
+            print(f'round: {round_}\n, loss: {loss.item()}\n{p}\n')
+            loss.backward() #Do the backward pass
+            optimizer.step() #Do a step in the learning space
+        rob.stop_simulation()
+        time.sleep(0.25)
+
+    torch.save(network.state_dict(), './model.ckpt')
+
+    if isinstance(rob, SimulationRobobo):
+        rob.stop_simulation()
+
+def run_lstm_classification(rob: IRobobo):
     if isinstance(rob, SimulationRobobo):
         rob.play_simulation()
     print('connected')
