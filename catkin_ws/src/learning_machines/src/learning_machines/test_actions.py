@@ -117,7 +117,7 @@ def run_obstacle_avoidance(rob: IRobobo):
             print('going to make a turn')
 
             # move the robot with adjusted wheel speeds for turning
-            rob.move_blocking(left_speed, right_speed, 100)
+            rob.move_blocking(left_speed, right_speed, 200)
             #rob.move_blocking(100, 100, 500)  # adjust duration for a longer turn
             time.sleep(0.25)
 
@@ -142,6 +142,40 @@ def run_to_block_and_stop(rob: IRobobo):
             break
         rob.move_blocking(50, 50, 125)
         rob.sleep(0.25)
+
+    # for i in range(50):
+    #     # print('\t'.join([str(x) for x in rob.read_irs()]))
+    #     print(rob.read_irs())
+    #     rob.move_blocking(50, 50, 125)
+    #     rob.sleep(0.25)
+    rob.sleep(20)
+    rob.reset_wheels()
+    rob.sleep(1)
+
+    if isinstance(rob, SimulationRobobo):
+        rob.stop_simulation()
+        
+def forward_backward(rob: IRobobo):
+    print('\t'.join(['BackL', 'BackR', 'FrontL', 'FrontR', 'FrontC', 'FrontRR', 'BackC', 'FrontLL']))
+    if isinstance(rob, SimulationRobobo):
+        rob.play_simulation()
+
+    thresh = 10000
+    forward = True
+    
+    while True:
+        irs = rob.read_irs()
+        print('\t'.join([str(x) for x in irs]))
+        if forward:
+            if max(irs[2], irs[3], irs[4], irs[5], irs[7]) > thresh:
+                forward = False
+            rob.move_blocking(50, 50, 125)
+            rob.sleep(0.25)
+        else:
+            if max(irs[0], irs[1], irs[6]) > thresh:
+                break
+            rob.move_blocking(-50, -50, 125)
+            rob.sleep(0.25)
 
     # for i in range(50):
     #     # print('\t'.join([str(x) for x in rob.read_irs()]))
