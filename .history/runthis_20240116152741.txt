@@ -1,0 +1,7 @@
+START DOCKER
+open terminal in 'cd C:\Users\markd\Code\LM_group_13'
+.\scripts\start_coppelia_sim.ps1 .\scenes\Robobo_Scene.ttt -gREMOTEAPISERVERSERVICE_19999_FALSE_TRUE
+.\scripts\run.ps1 --simulation
+
+
+After execution, restart the code
