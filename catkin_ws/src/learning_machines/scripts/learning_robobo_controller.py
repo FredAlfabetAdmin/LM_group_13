@@ -19,5 +19,6 @@ if __name__ == "__main__":
         raise ValueError(f"{sys.argv[1]} is not a valid argument.")
 
     #run_to_block_and_stop(rob)
-    forward_backward(rob)
+    #forward_backward(rob)
+    run_obstacle_avoidance(rob)
     #test_sens(rob)
