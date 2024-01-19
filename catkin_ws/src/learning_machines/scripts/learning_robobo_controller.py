@@ -20,4 +20,4 @@ if __name__ == "__main__":
         raise ValueError(f"{sys.argv[1]} is not a valid argument.")
 
     # run_to_block_and_stop(rob)
-    test_func(rob)
+    run_lstm_classification(rob)

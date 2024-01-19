@@ -3,28 +3,30 @@ import math
 from torch import nn
 
 class LSTM(nn.Module):
-    def __init__(self, input_dim: int, embedding_dim: int, hidden_dim: int, output_dim: int, b_size: int):
+    def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, num_layers: int):
         super().__init__()
-        self.embedding = nn.Embedding(input_dim, embedding_dim)
-
-        self.lstm = nn.LSTM(embedding_dim, hidden_dim)
-        self.h_to_y = nn.Linear(hidden_dim, output_dim)
-        self.output_activation = nn.Tanh()
-        self.hidden = torch.zeros((output_dim, b_size, hidden_dim))
-        self.cstate = torch.zeros((output_dim, b_size, hidden_dim))
+        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers=num_layers, batch_first=True)
+        self.fc = nn.Linear(hidden_dim, output_dim)
+        self.hidden = torch.zeros((num_layers, 1, hidden_dim))
+        self.cstate = torch.zeros((num_layers, 1, hidden_dim))
     
-    def forward(self, text):
-        # text dim: [sentence length, batch size]
-        embedded = self.embedding(text)
-        # embedded dim: [sentence length, batch size, embedding dim]
-        embedded = torch.swapaxes(embedded, 0, 1)
-        output, (hidden, cstate) = self.rnn(embedded, (self.hidden, self.cstate))
+    def forward(self, x):
+        output, (hidden, cstate) = self.lstm(x, (self.hidden, self.cstate))
         self.hidden = hidden
         self.cstate = cstate
-        output = torch.swapaxes(output, 0, 1)
-        output = self.h_to_y(output)
-        output = self.output_activation(output)
+        output = self.fc(output)
         return output
+
+# class LSTM(nn.Module):
+#     def __init__(self, input_size, hidden_size, output_size):
+#         super().__init__()
+#         self.lstm = nn.LSTM(input_size, hidden_size, batch_first=True)
+#         self.fc = nn.Linear(hidden_size, output_size)
+
+#     def forward(self, x):
+#         out, _ = self.lstm(x)
+#         out = self.fc(out[:, -1, :])  # Take the output from the last time step
+#         return out
 
 class NN(nn.Module):
     def __init__(self, input_dim: int, embedding_dim: int, hidden_dim: int, output_dim: int, b_size: int):

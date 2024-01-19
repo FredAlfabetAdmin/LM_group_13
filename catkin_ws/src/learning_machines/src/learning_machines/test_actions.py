@@ -10,6 +10,7 @@ from robobo_interface import (
     SimulationRobobo,
 )
 
+import time
 
 def test_emotions(rob: IRobobo):
     rob.set_emotion(Emotion.HAPPY)
@@ -96,8 +97,12 @@ def run_to_block_and_stop(rob: IRobobo):
         rob.stop_simulation()
 
 def test_func(rob):
+    time.sleep(1)
     if isinstance(rob, SimulationRobobo):
         rob.play_simulation()
     rob.create_primitiveshape()
+    rob.create_primitiveshape()
+    rob.create_primitiveshape()
     if isinstance(rob, SimulationRobobo):
         rob.stop_simulation()
+    time.sleep(3)
