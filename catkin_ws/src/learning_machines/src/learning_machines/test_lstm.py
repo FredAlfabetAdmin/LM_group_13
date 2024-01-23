@@ -17,6 +17,9 @@ from .lstm import eucl_loss_fn, LSTM
 from torch import optim, nn
 import torch, time, random
 import numpy as np
+import joblib
+
+scaler = joblib.load('software_powertrans_scaler.gz')
 
 def move_robobo(movement, rob):
     movement = movement.detach().numpy() #Use clone since detach doesnt properly work
@@ -35,11 +38,11 @@ class RobFN(torch.autograd.Function):
     def forward(ctx, input, rob):
         ctx.save_for_backward(input)
         move_robobo(input, rob)
-        rob_pos = rob.position()
+        irs = scaler.transform(rob.read_irs())
 
-        rob_pos = torch.tensor([rob_pos.x, rob_pos.y], dtype=torch.float32, requires_grad=True)
+        irs = torch.tensor(irs, dtype=torch.float32, requires_grad=True)
         
-        return rob_pos
+        return irs
 
     @staticmethod
     def backward(ctx, grad_output):
@@ -122,15 +125,19 @@ def run_lstm_regression(rob: IRobobo):
     if isinstance(rob, SimulationRobobo):
         rob.stop_simulation()
 
+def obstcl_avoid_loss(irs):
+    return torch.sum(irs)
+
 def run_lstm_classification(rob: IRobobo):
     if isinstance(rob, SimulationRobobo):
         rob.play_simulation()
     print('connected')
-    X_size = 14
+    X_size = 12
     seq_len = 8
     # Define the model and set it into train mode, together with the optimizer
     network = LSTM(X_size, 32, 4, 2)
-    loss_fn = eucl_loss_fn
+    loss_fn = obstcl_avoid_loss
+    seq = torch.zeros((1, seq_len, X_size), dtype=torch.float32)
     # Eval model in hw
     if not isinstance(rob, SimulationRobobo):
         network.load_state_dict(torch.load('./model.ckpt'))
@@ -141,16 +148,16 @@ def run_lstm_classification(rob: IRobobo):
                 # Get the input data
                 orientation = rob.read_orientation()
                 accelleration = rob.read_accel()
-                x = torch.tensor([x*100000 for x in rob.read_irs()] + [orientation.yaw, orientation.pitch, orientation.roll] + [accelleration.x, accelleration.y, accelleration.z], dtype=torch.float32)
-                p = network(x) #Do the forward pass
+                x = torch.tensor(rob.read_irs() + [orientation.yaw] + [accelleration.x, accelleration.y, accelleration.z], dtype=torch.float32)
+                seq = torch.cat([x.unsqueeze(0).unsqueeze(0), seq[:, :-1, :]], dim=1)
+                p = network(seq) #Do the forward pass
                 p = torch.argmax(nn.functional.softmax(p, dim=0))
                 move_robobo(p, rob)
         return
     network.train()
     optimizer = optim.Adam(params=network.parameters(), lr=0.05)
 
-    seq = torch.zeros((1, seq_len, X_size), dtype=torch.float32)
-    batch_size = 16
+    batch_size = 1
 
     print('Started training')
     for round_ in range(20): #Reset the robobo and target 10 times with or without random pos
@@ -166,8 +173,12 @@ def run_lstm_classification(rob: IRobobo):
             # Get the input data
             orientation = rob.read_orientation()
             accelleration = rob.read_accel()
+            
+            irs = list(scaler.transform([rob.read_irs()])[0])
+            
             # Make the input tensor (or the input data)
-            x = torch.tensor(rob.read_irs() + [orientation.yaw, orientation.pitch, orientation.roll] + [accelleration.x, accelleration.y, accelleration.z], dtype=torch.float32)
+            print(irs, [orientation.yaw], [accelleration.x, accelleration.y, accelleration.z])
+            x = torch.tensor(irs + [orientation.yaw] + [accelleration.x, accelleration.y, accelleration.z], dtype=torch.float32)
             seq = torch.cat([x.unsqueeze(0).unsqueeze(0), seq[:, :-1, :]], dim=1)
             p = network(seq) #Do the forward pass
             p = p[0, -1, :]
@@ -178,19 +189,15 @@ def run_lstm_classification(rob: IRobobo):
             # p[1] = torch.trunc(p[1]*100) #Multiply the output of the model (as regression now) and truncate
             # p[2] = torch.trunc(p[2]*500) #Multiply the output of the model (as regression now) and truncate
             
-            rob_pos = robfn(p, *(rob,)) #Calculate the custom robotics gradients
-            # Get the positions and make them tensors
-            target_pos = rob.get_target_position()                
-            target_pos = torch.tensor([target_pos.x, target_pos.y], dtype=torch.float32, requires_grad=True)
-            loss = loss_fn(target_pos, rob_pos) #Calculate the euclidean distance
-            loss = loss + ((time.time() - start)*0.001) #Could be used to give a penalty for time
+            loss = loss_fn(robfn(p, *(rob,))) #Calculate the euclidean distance
+            #loss = loss + ((time.time() - start)*0.001) #Could be used to give a penalty for time
             print(f'round: {round_}\n, loss: {loss.item()}\n{p}\n')
             loss.backward() #Do the backward pass
-            if stop_check(rob_pos.detach().numpy(), target_pos.detach().numpy()):
-                print('object_completed')
-                optimizer.step() #Do a step in the learning space
-                optimizer.zero_grad() #Clear the gradients in the optimizer
-                break
+            #if stop_check(rob_pos.detach().numpy(), target_pos.detach().numpy()):
+            #    print('object_completed')
+            #    optimizer.step() #Do a step in the learning space
+            #    optimizer.zero_grad() #Clear the gradients in the optimizer
+            #    break
             if step % batch_size == 0 and step != 0:
                 optimizer.step() #Do a step in the learning space
                 optimizer.zero_grad() #Clear the gradients in the optimizer
