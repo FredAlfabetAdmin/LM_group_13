@@ -187,8 +187,8 @@ def run_lstm_classification(rob: IRobobo):
             # p[0] = torch.trunc(p[0]*100) #Multiply the output of the model (as regression now) and truncate
             # p[1] = torch.trunc(p[1]*100) #Multiply the output of the model (as regression now) and truncate
             # p[2] = torch.trunc(p[2]*500) #Multiply the output of the model (as regression now) and truncate
-            irs = robfn(p, *(rob,))
-            loss = torch.pow(loss_fn(irs),2) #Calculate the euclidean distance
+            irs2 = robfn(p, *(rob,))
+            loss = loss_fn(irs2) #Calculate the euclidean distance
             #loss = loss + ((time.time() - start)*0.001) #Could be used to give a penalty for time
             print("test")
             print(loss.grad_fn, p.grad_fn)
