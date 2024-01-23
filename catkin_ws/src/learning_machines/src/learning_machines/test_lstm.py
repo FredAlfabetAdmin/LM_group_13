@@ -38,7 +38,7 @@ class RobFN(torch.autograd.Function):
     def forward(ctx, input, rob):
         ctx.save_for_backward(input)
         move_robobo(input, rob)
-        irs = list(scaler.transform([rob.read_irs()])[0])
+        irs = rob.read_irs()
 
         irs = torch.tensor(irs, dtype=torch.float32, requires_grad=True)
         
@@ -174,7 +174,7 @@ def run_lstm_classification(rob: IRobobo):
             orientation = rob.read_orientation()
             accelleration = rob.read_accel()
             
-            irs = list(scaler.transform([rob.read_irs()])[0])
+            irs = scaler.transform([rob.read_irs()])[0].tolist()
             
             # Make the input tensor (or the input data)
             x = torch.tensor(irs + [orientation.yaw] + [accelleration.x, accelleration.y, accelleration.z], dtype=torch.float32)
@@ -187,9 +187,11 @@ def run_lstm_classification(rob: IRobobo):
             # p[0] = torch.trunc(p[0]*100) #Multiply the output of the model (as regression now) and truncate
             # p[1] = torch.trunc(p[1]*100) #Multiply the output of the model (as regression now) and truncate
             # p[2] = torch.trunc(p[2]*500) #Multiply the output of the model (as regression now) and truncate
-            
-            loss = loss_fn(robfn(p, *(rob,))) #Calculate the euclidean distance
+            irs = robfn(p, *(rob,))
+            loss = torch.pow(loss_fn(irs),2) #Calculate the euclidean distance
             #loss = loss + ((time.time() - start)*0.001) #Could be used to give a penalty for time
+            print("test")
+            print(loss.grad_fn, p.grad_fn)
             print(f'round: {round_}\n, loss: {loss.item()}\n{p}\n')
             loss.backward() #Do the backward pass
             #if stop_check(rob_pos.detach().numpy(), target_pos.detach().numpy()):
