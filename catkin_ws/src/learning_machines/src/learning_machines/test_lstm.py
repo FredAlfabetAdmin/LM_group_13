@@ -178,7 +178,7 @@ def run_lstm_classification(rob: IRobobo):
             
             # Make the input tensor (or the input data)
             x = torch.tensor(irs + [orientation.yaw] + [accelleration.x, accelleration.y, accelleration.z], dtype=torch.float32)
-            seq = torch.cat([x.unsqueeze(0).unsqueeze(0), seq[:, :-1, :]], dim=1)
+            seq = torch.cat([seq[:, 1:, :], x.unsqueeze(0).unsqueeze(0)], dim=1)
             p = network(seq) #Do the forward pass
             p = p[0, -1, :]
             p = torch.argmax(nn.functional.softmax(p, dim=0))
