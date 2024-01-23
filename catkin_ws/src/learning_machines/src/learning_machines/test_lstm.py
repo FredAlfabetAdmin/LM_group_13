@@ -38,7 +38,7 @@ class RobFN(torch.autograd.Function):
     def forward(ctx, input, rob):
         ctx.save_for_backward(input)
         move_robobo(input, rob)
-        irs = scaler.transform(rob.read_irs())
+        irs = list(scaler.transform(rob.read_irs())[0])
 
         irs = torch.tensor(irs, dtype=torch.float32, requires_grad=True)
         
