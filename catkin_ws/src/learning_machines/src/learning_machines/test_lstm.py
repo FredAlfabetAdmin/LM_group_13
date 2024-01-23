@@ -38,7 +38,7 @@ class RobFN(torch.autograd.Function):
     def forward(ctx, input, rob):
         ctx.save_for_backward(input)
         move_robobo(input, rob)
-        irs = list(scaler.transform(rob.read_irs())[0])
+        irs = list(scaler.transform([rob.read_irs()])[0])
 
         irs = torch.tensor(irs, dtype=torch.float32, requires_grad=True)
         
@@ -177,7 +177,6 @@ def run_lstm_classification(rob: IRobobo):
             irs = list(scaler.transform([rob.read_irs()])[0])
             
             # Make the input tensor (or the input data)
-            print(irs, [orientation.yaw], [accelleration.x, accelleration.y, accelleration.z])
             x = torch.tensor(irs + [orientation.yaw] + [accelleration.x, accelleration.y, accelleration.z], dtype=torch.float32)
             seq = torch.cat([x.unsqueeze(0).unsqueeze(0), seq[:, :-1, :]], dim=1)
             p = network(seq) #Do the forward pass
