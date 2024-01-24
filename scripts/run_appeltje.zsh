@@ -2,7 +2,7 @@
 ip_address=$(ifconfig en0 | awk '/inet / {print $2}')
 echo $ip_address
 set -xe
-#docker build --platform linux/amd64 --tag lm .
+docker build --platform linux/amd64 --tag lm .
 echo "#!/bin/bash\nexport GLOBAL_IP_ADRESS="$ip_address"" > ./catkin_ws/ip.sh
 # Mounting to a directory that does not exist creates it.
 # Mounting to relative paths works since docker engine 23

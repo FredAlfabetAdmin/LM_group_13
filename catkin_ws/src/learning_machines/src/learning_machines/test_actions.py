@@ -1,5 +1,6 @@
 import time
 import cv2
+import numpy as np
 
 from data_files import FIGRURES_DIR
 from robobo_interface import (
@@ -188,3 +189,59 @@ def forward_backward(rob: IRobobo):
 
     if isinstance(rob, SimulationRobobo):
         rob.stop_simulation()
+
+def blob_detection(rob: IRobobo):
+    #TODO: maybe change the camera size
+    camera_width = 640
+    camera_height = 480
+
+    params = cv2.SimpleBlobDetector_Params()
+
+    params.filterByColor = True
+    params.blobColor = 0  # 0 for dark blobs, 255 for light blobs
+
+    #circularity for rectangles
+    params.filterByCircularity = True
+    params.minCircularity = 0.6 
+
+    #convexity completely covered
+    params.filterByConvexity = True
+    params.minConvexity = 0.9  
+
+    #inertia ratio (for rectangles)
+    params.filterByInertia = True
+    params.minInertiaRatio = 0.6 
+
+
+    detector = cv2.SimpleBlobDetector_create(params)
+
+    while True:
+        frame = rob.get_camera_frame()
+
+        #TODO:maybe resize frame
+        frame = cv2.resize(frame, (camera_width, camera_height))
+        hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+        lower_green = np.array([40, 40, 40])
+        upper_green = np.array([80, 255, 255])
+
+        #mask for the green color
+        green_mask = cv2.inRange(hsv_frame, lower_green, upper_green)
+
+        #AND operation to get the green regions
+        green_regions = cv2.bitwise_and(frame, frame, mask=green_mask)
+
+        gray_frame = cv2.cvtColor(green_regions, cv2.COLOR_BGR2GRAY)
+
+        #blob detection
+        keypoints = detector.detect(gray_frame)
+        frame_with_keypoints = cv2.drawKeypoints(frame, keypoints, np.array([]), (0, 0, 255),
+                                                 cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+
+        cv2.imshow("Blob Detection", frame_with_keypoints)
+        cv2.waitKey(0)
+
+        time.sleep(3)
+
+    rob.release_camera()
+    cv2.destroyAllWindows()
