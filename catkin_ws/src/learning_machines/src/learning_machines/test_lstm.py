@@ -36,22 +36,20 @@ def move_robobo(movement, rob):
 
 class RobFN(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, input, rob):
-        ctx.save_for_backward(input)
-        move_robobo(input, rob)
+    def forward(ctx, inp, rob):
+        ctx.save_for_backward(inp)
+        move_robobo(inp, rob)
         irs = torch.tensor(rob.read_irs(), dtype=torch.float32, requires_grad=True)
         return irs
 
     @staticmethod
     def backward(ctx, grad_output):
         # ctx.saved_tensors contains the input from the forward pass
-        input, = ctx.saved_tensors
+        inp, = ctx.saved_tensors
         grad_input = None
-        print(grad_output)
         if ctx.needs_input_grad[0]:
-            grad_input = torch.full((4,), grad_output[0])
-        print(grad_input)
-        grad_input.backward(retain_graph=True)
+            grad_input = torch.full_like(inp, grad_output[0])
+        print(inp, grad_input)
         return grad_input, None
 
 def obstcl_avoid_loss(irs):
@@ -86,8 +84,6 @@ def run_lstm_classification(rob: IRobobo):
     network.train()
     optimizer = optim.Adam(params=network.parameters(), lr=0.05)
 
-    batch_size = 1
-
     print('Started training')
     for round_ in range(20): #Reset the robobo and target 10 times with or without random pos
         # if rnd_pos:
@@ -102,10 +98,9 @@ def run_lstm_classification(rob: IRobobo):
             orientation = rob.read_orientation()
             accelleration = rob.read_accel()
             
-            irs = scaler.transform([rob.read_irs()])[0].tolist()
-            
+            irs_inp = scaler.transform([rob.read_irs()])[0].tolist()
             # Make the input tensor (or the input data)
-            x = torch.tensor(irs + [orientation.yaw] + [accelleration.x, accelleration.y, accelleration.z], dtype=torch.float32)
+            x = torch.tensor(irs_inp + [orientation.yaw] + [accelleration.x, accelleration.y, accelleration.z], dtype=torch.float32)
             seq = torch.cat([seq[:, 1:, :], x.unsqueeze(0).unsqueeze(0)], dim=1)
             p = network(seq) #Do the forward pass
             p = p[0, -1, :]
