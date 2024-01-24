@@ -2,7 +2,7 @@
 import sys
 
 from robobo_interface import SimulationRobobo, HardwareRobobo
-from learning_machines import test_func, run_lstm_regression, run_lstm_classification
+from learning_machines import run_lstm_classification
 
 
 if __name__ == "__main__":
