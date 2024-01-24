@@ -2,7 +2,7 @@
 import sys
 
 from robobo_interface import SimulationRobobo, HardwareRobobo
-from learning_machines import test_func, run_lstm_regression, run_lstm_classification
+from learning_machines import run_lstm_classification
 
 
 if __name__ == "__main__":
@@ -15,7 +15,7 @@ if __name__ == "__main__":
     elif sys.argv[1] == "--hardware":
         rob = HardwareRobobo(camera=True)
     elif sys.argv[1] == "--simulation":
-        rob = SimulationRobobo(realtime=True)
+        rob = SimulationRobobo() # realtime=True
     else:
         raise ValueError(f"{sys.argv[1]} is not a valid argument.")
 
