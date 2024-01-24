@@ -216,12 +216,11 @@ def blob_detection(rob: IRobobo):
     detector = cv2.SimpleBlobDetector_create(params)
 
     while True:
-        frame = rob.get_camera_frame()
+        frame = rob.get_image_front()
 
-        #TODO:maybe resize frame
+        #TODO:resize if needed
         frame = cv2.resize(frame, (camera_width, camera_height))
         hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-
         lower_green = np.array([40, 40, 40])
         upper_green = np.array([80, 255, 255])
 
@@ -233,15 +232,15 @@ def blob_detection(rob: IRobobo):
 
         gray_frame = cv2.cvtColor(green_regions, cv2.COLOR_BGR2GRAY)
 
-        #blob detection
+        #perform blob detection
         keypoints = detector.detect(gray_frame)
-        frame_with_keypoints = cv2.drawKeypoints(frame, keypoints, np.array([]), (0, 0, 255),
-                                                 cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
 
-        cv2.imshow("Blob Detection", frame_with_keypoints)
-        cv2.waitKey(0)
+        if keypoints:
+            keypoint = keypoints[0]
+            x, y = int(keypoint.pt[0]), int(keypoint.pt[1])
+            size_percent = (keypoint.size / (camera_width * camera_height)) * 100
+
+            #x and y values along with the percentage of blob area
+            return x, y, size_percent
 
         time.sleep(3)
-
-    rob.release_camera()
-    cv2.destroyAllWindows()
