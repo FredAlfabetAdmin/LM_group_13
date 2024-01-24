@@ -40,8 +40,6 @@ class RobFN(torch.autograd.Function):
         move_robobo(input, rob)
         irs = rob.read_irs()
 
-        irs = torch.tensor(irs, dtype=torch.float32, requires_grad=True)
-        
         return irs
 
     @staticmethod
@@ -188,10 +186,10 @@ def run_lstm_classification(rob: IRobobo):
             # p[1] = torch.trunc(p[1]*100) #Multiply the output of the model (as regression now) and truncate
             # p[2] = torch.trunc(p[2]*500) #Multiply the output of the model (as regression now) and truncate
             irs2 = robfn(p, *(rob,))
+            irs2 = torch.tensor(irs2, dtype=torch.float32, requires_grad=True)
+
             loss = loss_fn(irs2) #Calculate the euclidean distance
             #loss = loss + ((time.time() - start)*0.001) #Could be used to give a penalty for time
-            print("test")
-            print(loss.grad_fn, p.grad_fn)
             print(f'round: {round_}\n, loss: {loss.item()}\n{p}\n')
             loss.backward() #Do the backward pass
             #if stop_check(rob_pos.detach().numpy(), target_pos.detach().numpy()):
