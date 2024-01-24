@@ -3,4 +3,4 @@ opencv-python~=4.8
 cbor2
 zmq
 joblib
-scikit-learn
+scikit-learn==1.4.0
