@@ -38,13 +38,13 @@ class RobFN(torch.autograd.Function):
     def forward(ctx, input, rob):
         ctx.save_for_backward(input)
         move_robobo(input, rob)
-        irs = rob.read_irs()
-
+        irs = scaler.transform([rob.read_irs()])[0].tolist()
         return irs
 
     @staticmethod
     def backward(ctx, grad_output):
         # ctx.saved_tensors contains the input from the forward pass
+        print("test", grad_output)
         input, = ctx.saved_tensors
         grad_input = None
         if ctx.needs_input_grad[0]:
@@ -98,14 +98,14 @@ def run_lstm_regression(rob: IRobobo):
             accelleration = rob.read_accel()
             # Make the input tensor (or the input data)
             x = torch.tensor(rob.read_irs() + [orientation.yaw, orientation.pitch, orientation.roll] + [accelleration.x, accelleration.y, accelleration.z], dtype=torch.float32)
-            
+
             p = network(x) #Do the forward pass
             # # Take the wheel output and map it to neg to pos and the time to sigmoid.
             p = torch.concat([torch.unsqueeze(nn.functional.tanh(p[0]), 0), torch.unsqueeze(nn.functional.tanh(p[1]), 0), torch.unsqueeze(nn.functional.sigmoid(p[2]), 0)])
             p[0] = torch.trunc(p[0]*100) #Multiply the output of the model (as regression now) and truncate
             p[1] = torch.trunc(p[1]*100) #Multiply the output of the model (as regression now) and truncate
             p[2] = torch.trunc(p[2]*500) #Multiply the output of the model (as regression now) and truncate
-            
+
             rob_pos = robfn(p, *(rob,)) #Calculate the custom robotics gradients
             # Get the positions and make them tensors
             target_pos = rob.get_target_position()
@@ -124,6 +124,7 @@ def run_lstm_regression(rob: IRobobo):
         rob.stop_simulation()
 
 def obstcl_avoid_loss(irs):
+
     return torch.sum(irs)
 
 def run_lstm_classification(rob: IRobobo):
@@ -171,9 +172,9 @@ def run_lstm_classification(rob: IRobobo):
             # Get the input data
             orientation = rob.read_orientation()
             accelleration = rob.read_accel()
-            
+
             irs = scaler.transform([rob.read_irs()])[0].tolist()
-            
+
             # Make the input tensor (or the input data)
             x = torch.tensor(irs + [orientation.yaw] + [accelleration.x, accelleration.y, accelleration.z], dtype=torch.float32)
             seq = torch.cat([seq[:, 1:, :], x.unsqueeze(0).unsqueeze(0)], dim=1)

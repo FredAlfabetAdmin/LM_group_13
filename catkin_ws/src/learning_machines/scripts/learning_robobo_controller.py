@@ -3,6 +3,7 @@ import sys
 
 from robobo_interface import SimulationRobobo, HardwareRobobo
 from learning_machines import test_func, run_lstm_regression, run_lstm_classification
+from learning_machines.test_qlearn import run_qlearning_classification
 
 
 if __name__ == "__main__":
@@ -20,4 +21,4 @@ if __name__ == "__main__":
         raise ValueError(f"{sys.argv[1]} is not a valid argument.")
 
     # run_to_block_and_stop(rob)
-    run_lstm_classification(rob)
+    run_qlearning_classification(rob)
