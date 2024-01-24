@@ -48,8 +48,7 @@ class RobFN(torch.autograd.Function):
         inp, = ctx.saved_tensors
         grad_input = None
         if ctx.needs_input_grad[0]:
-            grad_input = torch.full_like(inp, grad_output[0])
-        print(inp, grad_input)
+            grad_input = torch.full_like(inp, torch.mean(grad_output))
         return grad_input, None
 
 def obstcl_avoid_loss(irs):

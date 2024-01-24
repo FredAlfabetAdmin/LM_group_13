@@ -7,13 +7,9 @@ class LSTM(nn.Module):
         super().__init__()
         self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers=num_layers, batch_first=True)
         self.fc = nn.Linear(hidden_dim, output_dim)
-        self.hidden = torch.zeros((num_layers, 1, hidden_dim))
-        self.cstate = torch.zeros((num_layers, 1, hidden_dim))
     
     def forward(self, x):
-        output, (hidden, cstate) = self.lstm(x, (self.hidden, self.cstate))
-        self.hidden = hidden
-        self.cstate = cstate
+        output, _ = self.lstm(x)
         output = self.fc(output)
         return output
 
