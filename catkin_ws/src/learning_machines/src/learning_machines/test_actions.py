@@ -104,32 +104,35 @@ def run_to_block_and_stop(rob: IRobobo):
     
     
 def test_environment(rob: IRobobo):
-    rob.play_simulation()
-    print("=============================")
-    #print(dir(rob))
-    
-    #get_info(rob)
-    #rob.move_blocking(50, 50, 125)
+    #randomize_blocks()
+    if False:
+            
+        rob.play_simulation()
+        print("=============================")
+        #print(dir(rob))
+        
+        #get_info(rob)
+        #rob.move_blocking(50, 50, 125)
 
-    target_position = rob.get_target_position()
-    current_position = rob.position()
-    
-
-
-    angle_xy = math.atan2(target_position.y - current_position.y, target_position.x - current_position.x)
-    angle_xy_degrees = math.degrees(angle_xy)
-    print(angle_xy_degrees)
+        target_position = rob.get_target_position()
+        current_position = rob.position()
+        
 
 
-    print(target_position)
-    print(current_position)
-    print(rob.read_orientation())
-    #get_info(rob)
+        angle_xy = math.atan2(target_position.y - current_position.y, target_position.x - current_position.x)
+        angle_xy_degrees = math.degrees(angle_xy)
+        print(angle_xy_degrees)
 
-    rob.stop_simulation()
-    
 
-    rob.play_simulation()
+        print(target_position)
+        print(current_position)
+        print(rob.read_orientation())
+        #get_info(rob)
+
+        rob.stop_simulation()
+        
+
+        rob.play_simulation()
 
 
 # PLACE THE FOLLOWING FILE INTO THE SIMULATION.PY
@@ -169,9 +172,9 @@ def randomize_blocks():
             print(f"z_pos: {z_pos}")
             sim.simxSetObjectPosition(self._connection_id, kid, False, [x_random_position, y_random_position, z_pos], sim.simx_opmode_blocking)
             print("random tp")
-        '''
+        
         print("Fin")
-
+        '''
 
         ## ============== OLD: ========== ##
         # Possible to use for getting all the children without a loop?

@@ -1,0 +1,6 @@
+1) Make a copy of 'Robobo_train_default.ttt'
+2) Rename the new file as 'Robobo_train.ttt'
+3) Run the start_coppeliasim.ps1 and run.ps1 with the scene '/scenes/Robobo_train/Robobo_train.ttt'
+4) Once the run.ps1 is done, it should have randomized the blocks in the scene
+5) Go to 'File -> Save Scene' and rename the scene to something else ('Robobo_train_0.ttt')
+6) Fin! 

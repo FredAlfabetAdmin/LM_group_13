@@ -592,48 +592,41 @@ class SimulationRobobo(IRobobo):
         self.randomize_environment()
 
     def randomize_environment(self)-> None:
-        for scene_nr in range(10):
-            ## RANDOMIZE THE ENVIRONMENT
-            kids_to_keep = 3
-            handle_dummy = sim.simxGetObjectHandle(self._connection_id, '/Dummy_Danger', simConst.simx_opmode_blocking)
-            print(f"Handle dummy: {handle_dummy}")
+    
+        ## RANDOMIZE THE ENVIRONMENT
+        kids_to_keep = random.randint(4, 10)
+        handle_dummy = sim.simxGetObjectHandle(self._connection_id, '/Dummy_Danger', simConst.simx_opmode_blocking)
+        print(f"Handle dummy: {handle_dummy}")
+        
+        # Create subset of children
+        kids = []
+        for i in range(10):
+            child_id = sim.simxGetObjectChild(self._connection_id, handle_dummy, i, sim.simx_opmode_blocking) # clientID, parentObjectHandle, childIndex, operationMode):
+            if len(kids) < kids_to_keep:
+                kids.append(child_id)
+            elif child_id == -1:
+                break
+            else:
+                sim.simxRemoveObject(self._connection_id, child_id, sim.simx_opmode_blocking)
+        print(kids)
+
+        # Randomize the remaining children in the environment
+        x_range_min = -1.4
+        x_range_max = 1.5
+        y_range_min = -1.4
+        y_range_max = 1.5
+        print("ranges made")
+        for kid in kids:
+            # clientID, objectHandle, relativeToObjectHandle, position, operationMode
+            x_random_position = random.randint(x_range_min*100, x_range_max*100)/ 100
+            y_random_position = random.randint(y_range_min*100, y_range_max*100)/ 100
+
+            #z_pos = sim.simxGetObjectPosition(self._connection_id, self._target, False, sim.simx_opmode_blocking)[2]
+            z_pos = 0.2
             
-            # Create subset of children
-            kids = []
-            for i in range(100):
-                child_id = sim.simxGetObjectChild(self._connection_id, handle_dummy, i, sim.simx_opmode_blocking) # clientID, parentObjectHandle, childIndex, operationMode):
-                if len(kids) < kids_to_keep:
-                    kids.append(child_id)
-                elif child_id == -1:
-                    break
-                else:
-                    sim.simxRemoveObject(self._connection_id, child_id, sim.simx_opmode_blocking)
-            print(kids)
-
-            # Randomize the remaining children in the environment
-            x_range_min = -1
-            x_range_max = 1
-            y_range_min = -1
-            y_range_max = 1
-            print("ranges made")
-            for kid in kids:
-                # clientID, objectHandle, relativeToObjectHandle, position, operationMode
-                x_random_position = random.randint(x_range_min*100, x_range_max*100)/ 100
-                y_random_position = random.randint(y_range_min*100, y_range_max*100)/ 100
-                print("in kid")
-
-                z_pos = sim.simxGetObjectPosition(self._connection_id, self._target, False, sim.simx_opmode_blocking)[2]
-                
-                print(f"z_pos: {z_pos}")
-                sim.simxSetObjectPosition(self._connection_id, kid, False, [x_random_position, y_random_position, z_pos], sim.simx_opmode_blocking)
-                print("random tp")
-            
-            # Save environment
-            print("sleeping. SAVE NOW!!")
-            time.sleep(10)
-            print("waking up")    
-            # scenePathAndName, options, operationMode):
-            sim.simxLoadScene(self._connection_id, 'Robobo_Scene.ttt', None,  sim.simx_opmode_blocking)
-            # Reset environment
-
+            print(f"Kid: {kid} - X: {x_random_position} - Y: {y_random_position} - Z: {z_pos}")
+            # clientID, objectHandle, relativeToObjectHandle, position, operationMode
+            pos = [x_random_position, y_random_position, z_pos]
+            print(f"POS: {pos}")
+            sim.simxSetObjectPosition(self._connection_id, kid, True, pos, sim.simx_opmode_blocking)
         print("Fin")
