@@ -2,7 +2,7 @@
 import sys
 
 from robobo_interface import SimulationRobobo, HardwareRobobo
-from learning_machines import run_to_block_and_stop, run_to_block_and_stop, test_environment
+from learning_machines import run_to_block_and_stop, run_to_block_and_stop, test_environment, randomize_blocks
 
 
 if __name__ == "__main__":
@@ -22,3 +22,4 @@ if __name__ == "__main__":
     # run_to_block_and_stop(rob)
     
     test_environment(rob)
+    #randomize_blocks(rob)

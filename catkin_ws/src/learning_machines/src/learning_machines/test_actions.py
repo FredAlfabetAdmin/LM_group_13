@@ -134,6 +134,7 @@ def test_environment(rob: IRobobo):
 
 # PLACE THE FOLLOWING FILE INTO THE SIMULATION.PY
 def randomize_blocks():
+        '''
         ## RANDOMIZE THE ENVIRONMENT
         kids_to_keep = 3
         handle_dummy = sim.simxGetObjectHandle(self._connection_id, '/Dummy_Danger', simConst.simx_opmode_blocking)
@@ -168,7 +169,7 @@ def randomize_blocks():
             print(f"z_pos: {z_pos}")
             sim.simxSetObjectPosition(self._connection_id, kid, False, [x_random_position, y_random_position, z_pos], sim.simx_opmode_blocking)
             print("random tp")
-
+        '''
         print("Fin")
 
 
