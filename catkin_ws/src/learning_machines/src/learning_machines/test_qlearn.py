@@ -38,6 +38,7 @@ class QLearningAgent:
         if np.random.rand() < self.exploration_prob:
             return np.random.choice(self.num_actions)  # Explore
         else:
+            print("-- delib --")
             # Exploit - choose action with the highest Q-value
             q_values = [self.get_q_value(state, a) for a in range(self.num_actions)]
             return np.argmax(q_values)
@@ -57,38 +58,38 @@ class QLearningAgent:
 scaler = joblib.load('software_powertrans_scaler.gz')
 
 
-def get_current_state(irs):
+def scale_and_return_ordered(irs):
     irs = scaler.transform([irs])[0].tolist()
-    left_sensors = [irs[7], irs[2], irs[4]]
-    right_sensors = [irs[4], irs[3], irs[5]]
-    back_sensors = [irs[0],irs[6],irs[1]]
-    if all(sensor > 0.15 for sensor in left_sensors + right_sensors):
-        return 0
-    if any(sensor > 0.15 for sensor in left_sensors):
-        return 1  # State 1
-    elif any(sensor > 0.15 for sensor in right_sensors):
-        return 2  # State 2
-    elif any(sensor > 0.15 for sensor in back_sensors):
-        return 3
-    else:
-        return 4
+    # Front sensors fromt left to right!! Not default order
+    front_sensors = [irs[7], irs[2], irs[4], irs[3], irs[5]]
+    # Back sensors from left to right
+    back_sensors = [irs[0], irs[6], irs[1]]
+    return front_sensors,back_sensors
+    # front_sensors = [FrontLL, FrontL, FrontC, FrontR, FrontRR]
+    # back_sensors = [BackL, BackC, BackR]
+
+def get_current_state(irs):
+    front_sensors, back_sensors = scale_and_return_ordered(irs)
+    state = tuple(1 if value > 0.2 else 0 for value in front_sensors)
+    return state
 
 
 def move_robobo_and_calc_reward(action, rob):
     forward_reward = 0
     if action == 0: #Move forward
+        print("So going forward")
         forward_reward = 0.5
         movement = [50, 50, 250]
-    elif action == 1: #Move backward
-        movement = [-50, -50, 250]
-    elif action == 2: #Move left
+    elif action == 1: #Move left
+        print("So going left")
         movement = [-50, 50, 250]
-    elif action == 3: #Move right
+    elif action == 2: #Move right
+        print("So going right")
         movement = [50, -50, 250]
     rob.move_blocking(int(movement[0]), int(movement[1]), int(movement[2]))
-    irs = scaler.transform([rob.read_irs()])[0].tolist()
-    reward = 3 - sum(irs) * 0.8 + forward_reward
-    return reward, get_current_state(rob.read_irs())
+    state = get_current_state(rob.read_irs())
+    reward = 5 - sum(state) + forward_reward
+    return reward, state
 
 
 def run_qlearning_classification(rob: IRobobo):
@@ -96,11 +97,11 @@ def run_qlearning_classification(rob: IRobobo):
         rob.play_simulation()
     print('connected')
     # Example usage:
-    num_actions = 4  # Number of possible actions
+    num_actions = 3  # Number of possible actions
     agent = QLearningAgent(num_actions)
 
     # Simulate a game loop
-    for round in range(20):
+    for round in range(30):
         if round > 3: #Only create random positions after 3 rounds
             rob.set_position(Position((random.random()*2.4)-1.2, (random.random()*2.4)-1.2, 0.03), Orientation(-90, -90, -90))
             rob.set_target_position(Position((random.random()*2.4)-1.2, (random.random()*2.4)-1.2, 0.2))
@@ -110,6 +111,7 @@ def run_qlearning_classification(rob: IRobobo):
             action = agent.choose_action(state)
 
             # Simulate taking the chosen action and observe the next state and reward
+            print(state)
             reward, next_state = move_robobo_and_calc_reward(action,rob)  # Replace with your game logic
 
             # Update Q-value based on the observed reward and the Q-learning update rule
