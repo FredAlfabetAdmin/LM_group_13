@@ -19,9 +19,15 @@ import torch, time, random
 import numpy as np
 import joblib
 
+# Define scalers for software / hardware
+if isinstance(rob, SimulationRobobo):
+    scaler = joblib.load('software_powertrans_scaler.gz')
+else:
+    scaler = joblib.load('hardware_powertrans_scaler.gz')
+
 
 class QLearningAgent:
-    def __init__(self, num_actions, learning_rate=0.1, discount_factor=0.9, exploration_prob=0.2):
+    def __init__(self, num_actions, learning_rate=0.1, discount_factor=0.9, exploration_prob=0.0):
         self.num_actions = num_actions
         self.learning_rate = learning_rate
         self.discount_factor = discount_factor
@@ -53,9 +59,6 @@ class QLearningAgent:
         #old = self.get_q_value(state, action)
         #print(f"{state}:{action} = {old} to {new_q}")
         self.q_table[(state, action)] = new_q
-
-
-scaler = joblib.load('software_powertrans_scaler.gz')
 
 
 def scale_and_return_ordered(irs):
@@ -96,10 +99,24 @@ def run_qlearning_classification(rob: IRobobo):
     if isinstance(rob, SimulationRobobo):
         rob.play_simulation()
     print('connected')
-    # Example usage:
+
     num_actions = 3  # Number of possible actions
     agent = QLearningAgent(num_actions)
 
+    state = get_current_state(rob.read_irs())
+
+    if not isinstance(rob, SimulationRobobo):
+        for step in range(240):  # Take max 75 steps per round
+            action = agent.choose_action(state)
+
+            # Simulate taking the chosen action and observe the next state and reward
+            print(state)
+            reward, next_state = move_robobo_and_calc_reward(action,rob)  # Replace with your game logic
+            print("Reward:", reward)
+
+            # Move to the next state for the next iteration
+            state = next_state
+        return
     # Simulate a game loop
     for round in range(150):
         print(f"-=-=-=-=-=-=- Round {round} -=-=-=-=-=-=-=-=-=-")
