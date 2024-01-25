@@ -1,6 +1,7 @@
 import torch
 import math
 from torch import nn
+import numpy as np
 
 class LSTM(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, num_layers: int):
@@ -42,10 +43,10 @@ class NN(nn.Module):
 def eucl_loss_fn(point1, point2):
     delta1 = point1[0] - point2[0]
     delta2 = point1[1] - point2[1]
-    delta1 = torch.pow(delta1, 2)
-    delta2 = torch.pow(delta2, 2)
+    delta1 = delta1 ** 2
+    delta2 = delta2 ** 2
     total = delta1 + delta2
-    distance = torch.sqrt(total)
+    distance = np.sqrt(total)
     return distance
 
 # network = LSTM()

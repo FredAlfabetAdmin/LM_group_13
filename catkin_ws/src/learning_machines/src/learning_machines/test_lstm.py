@@ -15,6 +15,7 @@ from robobo_interface.datatypes import (
 
 from .lstm import eucl_loss_fn, LSTM
 from torch import optim, nn
+import torch.nn.functional as F
 import torch, time, random
 import numpy as np
 import joblib
@@ -67,21 +68,7 @@ class Blob_Detection():
             x, y = int(keypoint.pt[0]) / self.camera_width, int(keypoint.pt[1]) / self.camera_height
             # size_percent = (keypoint.size / (self.camera_width * self.camera_height)) * 100
             #x and y values along with the percentage of blob area
-        return [x, y, size_percent]
-        
-
-def move_robobo(movement, rob):
-    movement = movement.detach().numpy() #Use clone since detach doesnt properly work
-    movement = np.argmax(movement)
-    if movement == 0: #Move forward
-        movement = [50, 50, 250]
-    elif movement == 1: #Move backward
-        movement = [-50, -50, 250]
-    elif movement == 2: #Move left
-        movement = [-50, 50, 125]
-    elif movement == 3: #Move right
-        movement = [50, -50, 125]
-    rob.move_blocking(int(movement[0]), int(movement[1]), int(movement[2]))
+        return [x, y, size_percent]  
 
 class FoodDetect():
     def __init__(self):
@@ -89,50 +76,149 @@ class FoodDetect():
         max_len = 20
         self.highest_num = 0
         self.food = [0] * max_len
-        self.mask = torch.tensor(list(reversed([1-(x*(1/(max_len))) for x in range(max_len)])), dtype=torch.float32)
+        self.mask = list(reversed([1-(x*(1/(max_len))) for x in range(max_len)]))
 
     def add_food(self, food: int) -> int:
         # Add nr_food to list and apply the mask
         found_food = food - self.highest_num # Get difference between the two and see if food has changed
         self.food = self.food[1:] #Tick the buffer one over
-        food_buffer = torch.cat([torch.tensor(self.food, dtype=torch.float32), found_food.unsqueeze(0)]) #Torch combine them
-        self.food += [found_food.detach()] #Pytonic combine them for the class
-        if food.detach() > self.highest_num: #Check if found food is higher so 0 can enter the list
-            self.highest_num = food.detach()
-        return (-torch.sum(food_buffer * self.mask) + 1 ) * (10 * (1-(self.highest_num/7))) #Apply the mask and sum.
+        self.food += [found_food] #Pytonic combine them for the class
+        if food > self.highest_num: #Check if found food is higher so 0 can enter the list
+            self.highest_num = food
+        return (-np.sum([x*y for x,y in zip(self.food, self.mask)]) + 1 ) * (10 * (1-(self.highest_num/7))) #Apply the mask and sum.
 
-class RobFN(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, input, rob, start, detector):
-        ctx.save_for_backward(input)
-        move_robobo(input, rob)
-        food_and_time = torch.tensor([rob.nr_food_collected(), time.time() - start, detector.blob_detect(rob)[-1]], dtype=torch.float32, requires_grad=True)
-        return food_and_time
+class PolicyNetwork(nn.Module):
+    def __init__(self, input_size, output_size):
+        super(PolicyNetwork, self).__init__()
+        self.fc1 = nn.Linear(input_size, 64)
+        self.fc2 = nn.Linear(64, 64)
+        self.fc3 = nn.Linear(64, output_size)
 
-    @staticmethod
-    def backward(ctx, grad_output):
-        # ctx.saved_tensors contains the input from the forward pass
-        input, = ctx.saved_tensors
-        grad_input = None
-        print(grad_output)
-        if ctx.needs_input_grad[0]:
-            grad_input = torch.full_like(input, grad_output[1] * 100) #Use 1 for the rob_pos grad, *100 since the output of the model is like that
-        return grad_input, None, None, None
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = torch.tanh(self.fc3(x))  # Using tanh for output to handle actions in range [-1, 1]
+        return x
+    
+class RobotEnvironment:
+    def __init__(self, rob: IRobobo):
+        self.rob = rob
+        self.scaler = joblib.load('software_powertrans_scaler.gz')
+        self.detector = Blob_Detection(640, 480)
+        self.repr_trackr = 0
 
-def evaluation(rob, model: nn.Module, scaler: joblib.load, seq: torch.Tensor, detector: Blob_Detection):
-    model.load_state_dict(torch.load('./model.ckpt'))
-    model.eval()
-    with torch.no_grad():
-        rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
-        for _ in range(200): #Take max 75 steps per round
-            # Get the input data
-            orientation = rob.read_orientation()
-            accelleration = rob.read_accel()
-            x = torch.tensor(scaler.transform([rob.read_irs()])[0].tolist() + [orientation.yaw] + [accelleration.x, accelleration.y, accelleration.z] + [detector.blob_detect(rob)[-1]], dtype=torch.float32)
-            seq = torch.cat([seq[:, 1:, :], x.unsqueeze(0).unsqueeze(0)], dim=1)
-            p = model(seq) #Do the forward pass
-            p = nn.functional.softmax(p, dim=0)
-            move_robobo(p, rob)
+    def get_state(self):
+        orientation = self.rob.read_orientation()
+        accelleration = self.rob.read_accel()
+        self.detected = self.detector.blob_detect(self.rob)[-1]
+        self.position = self.rob.position()
+        return np.array(self.scaler.transform([self.rob.read_irs()])[0].tolist() + [orientation.yaw] + [accelleration.x, accelleration.y, accelleration.z] + [self.detected])
+
+    def take_action(self, action):
+        if np.random.random() < 0.7:
+            action = np.random.choice([0,1,2,3], p=action)
+        else:
+            action = np.argmax(action)
+        if action == 0: #Move forward
+            action = [50, 50, 250]
+        elif action == 1: #Move backward
+            action = [-50, -50, 250]
+        elif action == 2: #Move left
+            action = [-50, 50, 125]
+        elif action == 3: #Move right
+            action = [50, -50, 125]
+        self.rob.move_blocking(int(action[0]), int(action[1]), int(action[2]))
+
+    def get_reward(self):
+        diff = eucl_loss_fn([self.position.x, self.position.y], [self.rob.position().x, self.rob.position().y])
+        if diff < 0.05:
+            self.repr_trackr += 1
+            penality = (self.repr_trackr ** 1.1)
+        else:
+            penality = 0
+            self.repr_trackr = 0
+        return [(50 -self.detector.blob_detect(self.rob)[-1]) + self.detect.add_food(self.rob.nr_food_collected()) + penality]
+    
+    def start_env(self):
+        self.rob.play_simulation()
+        self.rob.set_phone_tilt_blocking(105, 100)
+        self.detect = FoodDetect()
+        self.repr_trackr = 0
+
+    def stop_env(self):
+        self.rob.stop_simulation()
+
+class RLAgent:
+    def __init__(self, state_size, action_size):
+        self.policy_network = PolicyNetwork(state_size, action_size)
+        self.optimizer = optim.Adam(self.policy_network.parameters(), lr=0.1)
+        self.gamma = 0.99  # Discount factor
+        self.epsilon_clip = 0.2  # PPO clipping parameter
+
+    def get_action(self, state):
+        state = torch.from_numpy(state).float()
+        action_probs = self.policy_network(state)
+        action = nn.functional.softmax(action_probs, dim=0)
+        return action.detach().numpy()
+
+    def update_policy(self, states, actions, rewards):
+        self.optimizer.zero_grad()
+        states = torch.FloatTensor(states)
+        actions = torch.FloatTensor(actions)
+        rewards = torch.FloatTensor(rewards[::-1])
+
+        # Compute discounted rewards
+        discounted_rewards = []
+        running_add = 0
+        for r in rewards:
+            running_add = running_add * self.gamma + r
+            discounted_rewards.insert(0, running_add)
+
+        # Normalize discounted rewards
+        discounted_rewards = torch.FloatTensor(discounted_rewards)
+        discounted_rewards = (discounted_rewards - discounted_rewards.mean()) / ((discounted_rewards.std() + 1e-8) if discounted_rewards.shape[0] > 1 else 1e-8)
+        # Convert actions to probabilities using the policy network
+        action_probs = self.policy_network(states)
+        action_distribution = torch.distributions.Normal(action_probs, torch.tensor(0.1))
+        log_probs = action_distribution.log_prob(actions).sum(dim=0)
+
+        # Compute advantages
+        advantages = discounted_rewards - log_probs.detach()
+
+        # PPO Surrogate Objective
+        new_action_probs = self.policy_network(states)
+        new_action_distribution = torch.distributions.Normal(new_action_probs, torch.tensor(0.1))
+        new_log_probs = new_action_distribution.log_prob(actions).sum(dim=0)
+
+        ratio = torch.exp(new_log_probs - log_probs)
+        surr1 = ratio * advantages
+        surr2 = torch.clamp(ratio, 1 - self.epsilon_clip, 1 + self.epsilon_clip) * advantages
+
+        loss = -torch.min(surr1, surr2).mean()
+
+        # Update the policy using the optimizer
+        loss.backward()
+        self.optimizer.step()
+
+def train_agent(agent: RLAgent, env: RobotEnvironment, num_episodes=1000, max_steps_per_episode=100):
+    for episode in range(num_episodes):
+        env.start_env()
+        state = env.get_state()
+        total_reward = []
+        for _ in range(max_steps_per_episode):
+            action = agent.get_action(state)
+            env.take_action(action)
+            reward = env.get_reward()
+            total_reward += reward
+
+            # Store the experience for updating the policy
+            agent.update_policy(state, action, reward)
+
+            state = env.get_state()
+            print(f"Episode {episode + 1}, Step: {_}, Total Reward: {reward}, action: {np.argmax(action)}")
+        print(f"Episode {episode + 1}, Total Reward: {np.mean(total_reward)}")
+        env.stop_env()
+        time.sleep(0.25)
 
 def calc_loss(food_and_time: torch.Tensor, max_time: int, time_penalty: int, food_detect: FoodDetect):
     if food_and_time[0] > 0:
@@ -142,55 +228,6 @@ def calc_loss(food_and_time: torch.Tensor, max_time: int, time_penalty: int, foo
     sim_time = ((torch.pow(food_and_time[1], 2)*(1/max_time))) / max_time * time_penalty
     c_food = food_detect.add_food(food_and_time[0])
     return c_food + sim_time # n_food_reward
-
-def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Optimizer, max_time: int, time_penalty: int, seq: torch.Tensor, detector: Blob_Detection) -> nn.Module:
-    print('Started training')
-    model.train()
-    optimizer.zero_grad()
-    for round_ in range(20): #Reset the robobo and target 10 times with or without random pos
-        rob.play_simulation()
-        start = time.time()
-        food_detect = FoodDetect()
-        repr_trackr = 0
-        rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
-        for _ in range(50): # Keep going unless 3 minutes is reached or all food is collected
-            robfn = RobFN.apply #Define the custom grad layer
-            orientation = rob.read_orientation()
-            accelleration = rob.read_accel()
-            cam_corder = detector.blob_detect(rob)
-            pre_train_pos = rob.position()
-            pre_train_pos = torch.tensor([pre_train_pos.x, pre_train_pos.y], dtype=torch.float32)
-            x = torch.tensor(scaler.transform([rob.read_irs()])[0].tolist() + [orientation.yaw] + [accelleration.x, accelleration.y, accelleration.z] + [cam_corder[-1]], dtype=torch.float32)
-            seq = torch.cat([seq[:, 1:, :], x.unsqueeze(0).unsqueeze(0)], dim=1)
-            p = model(seq) #Do the forward pass
-            p = p[0, -1, :]
-            # p = p[0]
-            p = nn.functional.softmax(p, dim=0)
-            food_and_time = robfn(p, *(rob, start, detector)) #Calculate the custom robotics gradients
-
-            rob_pos = rob.position()
-            rob_pos = torch.tensor([rob_pos.x, rob_pos.y], dtype=torch.float32)
-
-            loss = calc_loss(food_and_time, max_time, time_penalty, food_detect)
-            eucl_dist = eucl_loss_fn(rob_pos, pre_train_pos)
-            if eucl_dist < 0.05:
-                repr_trackr += 1
-                loss += (repr_trackr ** 1.2)
-            else:
-                repr_trackr = 0
-            loss += (50 - food_and_time[-1]) / 5
-            # loss = nn.functional.relu((50 - food_and_time[-1]) - (50 - cam_corder[-1]))
-
-            print(f'round: {round_}, loss: {loss.item()}, time: {int(food_and_time[1].item())}, direction: {np.argmax(p.detach().numpy())}')
-            loss.backward() #Do the backward pass
-            optimizer.step() #Do a step in the learning space
-            optimizer.zero_grad() #Clear the gradients in the optimizer
-            if food_and_time[0] >= 7 or food_and_time[1] > 3*60*1000:
-                print(f'object_completed within time: {food_and_time[1]}, collected: {food_and_time[0]}')
-                break
-        rob.stop_simulation()
-        time.sleep(0.25)
-    return model
 
 def run_lstm_classification(
         rob: IRobobo, 
@@ -203,25 +240,21 @@ def run_lstm_classification(
 
     # with torch.autograd.detect_anomaly():
     print('connected')
-    # Setup things
-    scaler = joblib.load('software_powertrans_scaler.gz')
-
-    seq = torch.zeros((1, seq_len, features), dtype=torch.float32)
-    detector = Blob_Detection(640, 480)
-
-    # Define the model and set it into train mode, together with the optimizer
-    model = LSTM(features, hidden_size, num_outputs, num_layers)
 
     # Eval model in hw
     if not isinstance(rob, SimulationRobobo) or eval_:
-        evaluation(rob, model, scaler, seq, detector)
+        # evaluation(rob, model, scaler, seq, detector)
         return
     
-    # Define optimizer for training
-    optimizer = optim.SGD(params=model.parameters(), lr=0.5, momentum=0.9)
-    model = train(rob, model, scaler, optimizer, max_time, time_penalty, seq, detector)
+    agent = RLAgent(features, num_outputs)
+    environment = RobotEnvironment(rob)
 
-    torch.save(model.state_dict(), './model.ckpt')
+    max_steps_per_episode = 100  # Adjust as needed
+    num_episodes = 1000  # Adjust as needed
+
+    train_agent(agent, environment, num_episodes, max_steps_per_episode)
+
+    # torch.save(model.state_dict(), './model.ckpt')
 
     if isinstance(rob, SimulationRobobo):
         rob.stop_simulation()
