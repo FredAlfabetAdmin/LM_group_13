@@ -17,6 +17,66 @@ from .lstm import eucl_loss_fn, LSTM
 from torch import optim, nn
 import torch, time, random
 import numpy as np
+import joblib
+import cv2
+
+def blob_detection(rob: IRobobo):
+    camera_width = 640
+    camera_height = 480
+
+    params = cv2.SimpleBlobDetector_Params()
+
+    params.filterByColor = True
+    params.blobColor = 255  # 0 for dark blobs, 255 for light blobs
+
+    #circularity for rectangles
+    params.filterByCircularity = True
+    params.minCircularity = 0.6 
+
+    #convexity completely covered
+    params.filterByConvexity = True
+    params.minConvexity = 0.9  
+
+    #inertia ratio (for rectangles)
+    params.filterByInertia = True
+    params.minInertiaRatio = 0.6 
+
+
+    detector = cv2.SimpleBlobDetector_create(params)
+
+    for i in range(10):
+        frame = rob.get_image_front()
+
+        #TODO:resize if needed
+        frame = cv2.resize(frame, (camera_width, camera_height))
+        hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        lower_green = np.array([40, 40, 40])
+        upper_green = np.array([80, 255, 255])
+
+        #mask for the green color
+        green_mask = cv2.inRange(hsv_frame, lower_green, upper_green)
+
+        #AND operation to get the green regions
+        green_regions = cv2.bitwise_and(frame, frame, mask=green_mask)
+
+        gray_frame = cv2.cvtColor(green_regions, cv2.COLOR_BGR2GRAY)
+
+        #perform blob detection
+        keypoints = detector.detect(gray_frame)
+
+        print(keypoints)
+        cv2.imwrite(str("./frame.png"), frame)
+        cv2.imwrite(str("./gray_frame.png"), gray_frame)
+
+        if keypoints:
+            keypoint = keypoints[0]
+            x, y = int(keypoint.pt[0]), int(keypoint.pt[1])
+            size_percent = (keypoint.size / (camera_width * camera_height)) * 100
+            print(x,y,size_percent)
+            #x and y values along with the percentage of blob area
+            return x, y, size_percent
+
+        time.sleep(3)
 
 def move_robobo(movement, rob):
     movement = movement.detach().numpy() #Use clone since detach doesnt properly work
@@ -67,74 +127,88 @@ class RobFN(torch.autograd.Function):
             grad_input = torch.full((4,), torch.mean(grad_output)) #Use 1 for the rob_pos grad, *100 since the output of the model is like that
         return grad_input, None, None
 
-def run_lstm_classification(rob: IRobobo):
-    with torch.autograd.detect_anomaly():
-        if isinstance(rob, SimulationRobobo):
-            rob.play_simulation()
-        print('connected')
-        # Setup things
-        max_time = 3*60*1000
-        time_alpha = 100
+def evaluation(rob, model: nn.Module, scaler: joblib.load, seq: torch.Tensor):
+    model.load_state_dict(torch.load('./model.ckpt'))
+    model.eval()
+    with torch.no_grad():
+        for _ in range(200): #Take max 75 steps per round
+            robfn = RobFN.apply #Define the custom grad layer
+            # Get the input data
+            orientation = rob.read_orientation()
+            accelleration = rob.read_accel()
+            x = torch.tensor(scaler.transform([rob.read_irs()])[0].tolist() + [orientation.yaw, orientation.pitch, orientation.roll] + [accelleration.x, accelleration.y, accelleration.z], dtype=torch.float32)
+            seq = torch.cat([seq[:, 1:, :], x.unsqueeze(0).unsqueeze(0)], dim=1)
+            p = model(seq) #Do the forward pass
+            p = nn.functional.softmax(p, dim=0)
+            move_robobo(p, rob)
 
-        X_size = 14
-        seq_len = 8
-        seq = torch.zeros((1, seq_len, X_size), dtype=torch.float32)
-        # Define the model and set it into train mode, together with the optimizer
-        network = LSTM(X_size, 32, 4, 2)
-        # Eval model in hw
-        if not isinstance(rob, SimulationRobobo):
-            network.load_state_dict(torch.load('./model.ckpt'))
-            network.eval()
-            with torch.no_grad():
-                for _ in range(200): #Take max 75 steps per round
-                    robfn = RobFN.apply #Define the custom grad layer
-                    # Get the input data
-                    orientation = rob.read_orientation()
-                    accelleration = rob.read_accel()
-                    x = torch.tensor([x*100000 for x in rob.read_irs()] + [orientation.yaw, orientation.pitch, orientation.roll] + [accelleration.x, accelleration.y, accelleration.z], dtype=torch.float32)
-                    seq = torch.cat([seq[:, 1:, :], x.unsqueeze(0).unsqueeze(0)], dim=1)
-                    p = network(seq) #Do the forward pass
-                    p = nn.functional.softmax(p, dim=0)
-                    move_robobo(p, rob)
-            return
-        
-        optimizer = optim.Adam(params=network.parameters(), lr=0.05)
-        network.train()
-        print('Started training')
-        for round_ in range(20): #Reset the robobo and target 10 times with or without random pos
-            rob.play_simulation()
-            start = time.time()
-            food_detect = FoodDetect()
-            for step in range(240): #Take max 75 steps per round
-                robfn = RobFN.apply #Define the custom grad layer
-                orientation = rob.read_orientation()
-                accelleration = rob.read_accel()
-                x = torch.tensor(rob.read_irs() + [orientation.yaw, orientation.pitch, orientation.roll] + [accelleration.x, accelleration.y, accelleration.z], dtype=torch.float32)
-                seq = torch.cat([seq[:, 1:, :], x.unsqueeze(0).unsqueeze(0)], dim=1)
-                p = network(seq) #Do the forward pass
-                p = p[0, -1, :]
-                p = nn.functional.softmax(p, dim=0)
-                food_and_time = robfn(p, *(rob, start)) #Calculate the custom robotics gradients
+def calc_loss(food_and_time: torch.Tensor, max_time: int, time_penalty: int, food_detect: FoodDetect):
+    if food_and_time[0] > 0:
+        n_food_reward = -torch.ceil(food_and_time[0]*(torch.log10(food_and_time[0]))) + 7
+    else:
+        n_food_reward = food_and_time[0] + 7
+    sim_time = ((torch.pow(food_and_time[1], 2)*(1/max_time))) / max_time * time_penalty
+    # c_food = food_detect.add_food(food_and_time[0])
+    return n_food_reward + sim_time # + c_food
 
-                if food_and_time[0] > 0:
-                    n_food_reward = -torch.ceil(food_and_time[0]*(torch.log10(food_and_time[0]))) + 7
-                else:
-                    n_food_reward = food_and_time[0] + 7
-                sim_time = ((torch.pow(food_and_time[1], 2)*(1/max_time))) / max_time * time_alpha
-                # c_food = food_detect.add_food(food_and_time[0])
-                loss =  n_food_reward + sim_time # + c_food
+def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Optimizer, max_time: int, time_penalty: int, seq: torch.Tensor) -> nn.Module:
+    print('Started training')
+    model.train()
+    optimizer.zero_grad()
+    for round_ in range(20): #Reset the robobo and target 10 times with or without random pos
+        rob.play_simulation()
+        start = time.time()
+        food_detect = FoodDetect()
+        for step in range(240): #Take max 75 steps per round
+            robfn = RobFN.apply #Define the custom grad layer
+            orientation = rob.read_orientation()
+            accelleration = rob.read_accel()
+            x = torch.tensor(scaler.transform([rob.read_irs()])[0].tolist() + [orientation.yaw, orientation.pitch, orientation.roll] + [accelleration.x, accelleration.y, accelleration.z], dtype=torch.float32)
+            seq = torch.cat([seq[:, 1:, :], x.unsqueeze(0).unsqueeze(0)], dim=1)
+            p = model(seq) #Do the forward pass
+            p = p[0, -1, :]
+            p = nn.functional.softmax(p, dim=0)
+            food_and_time = robfn(p, *(rob, start)) #Calculate the custom robotics gradients
 
-                print(f'round: {round_}, loss: {loss.item()}')
-                loss.backward() #Do the backward pass
-                optimizer.step() #Do a step in the learning space
-                optimizer.zero_grad() #Clear the gradients in the optimizer
-                if food_and_time >= 7 or sim_time > 3*60*1000:
-                    print('object_completed')
-                    break
-            rob.stop_simulation()
-            time.sleep(0.25)
+            loss = calc_loss(food_and_time, max_time, time_penalty, food_detect)
 
-        torch.save(network.state_dict(), './model.ckpt')
+            print(f'round: {round_}, loss: {loss.item()}')
+            loss.backward() #Do the backward pass
+            optimizer.step() #Do a step in the learning space
+            optimizer.zero_grad() #Clear the gradients in the optimizer
+            if food_and_time[0] >= 7 or food_and_time[1] > 3*60*1000:
+                print(f'object_completed within time: {food_and_time[1]}, collected: {food_and_time[0]}')
+                break
+        rob.stop_simulation()
+        time.sleep(0.25)
+    return model
 
-        if isinstance(rob, SimulationRobobo):
-            rob.stop_simulation()
+def run_lstm_classification(
+        rob: IRobobo, 
+        max_time=3*60*1000, time_penalty=5, 
+        seq_len=8, features=14, hidden_size=32, num_outputs=4, num_layers=2,
+        eval_=False):
+    # with torch.autograd.detect_anomaly():
+    print('connected')
+    # Setup things
+    rob.set_phone_tilt_blocking(110, 100) #Angle phone forward
+    scaler = joblib.load('software_powertrans_scaler.gz')
+
+    seq = torch.zeros((1, seq_len, features), dtype=torch.float32)
+
+    # Define the model and set it into train mode, together with the optimizer
+    model = LSTM(features, hidden_size, num_outputs, num_layers)
+
+    # Eval model in hw
+    if not isinstance(rob, SimulationRobobo) or eval_:
+        evaluation(rob, model, scaler, seq)
+        return
+    
+    # Define optimizer for training
+    optimizer = optim.Adam(params=model.parameters(), lr=0.05)
+    model = train(rob, model, scaler, optimizer, max_time, time_penalty, seq)
+
+    torch.save(model.state_dict(), './model.ckpt')
+
+    if isinstance(rob, SimulationRobobo):
+        rob.stop_simulation()
