@@ -84,21 +84,21 @@ def move_robobo(movement, rob):
 class FoodDetect():
     def __init__(self):
         '''class to see if food is found and decay this over time'''
-        max_len = 10
+        max_len = 20
         self.highest_num = 0
-        self.food = torch.zeros((max_len,), dtype=torch.float32, requires_grad=True)
-        self.mask = torch.tensor([1-(x*(1/(max_len))) for x in range(max_len)], dtype=torch.float32, requires_grad=True)
-        tot_ = torch.sum(self.mask.detach())
+        self.food = [0] * max_len
+        self.mask = torch.tensor(list(reversed([1-(x*(1/(max_len))) for x in range(max_len)])), dtype=torch.float32)
 
     def add_food(self, food: int) -> int:
         # Add nr_food to list and apply the mask
-        food -= self.highest_num #If found one it gets increased by 1 or 2 otherwise it will be 0
+        found_food = food - self.highest_num # Get difference between the two and see if food has changed
         self.food = self.food[1:] #Tick the buffer one over
-        self.food = torch.cat([self.food, food.unsqueeze(0)])
-        if self.highest_num > food:
-            self.highest_num = food
-        print('food_calc', self.food * self.mask)
-        return (-torch.sum(self.food * self.mask) + 1 ) * 10 #Apply the mask and sum.
+        food_buffer = torch.cat([torch.tensor(self.food, dtype=torch.float32), found_food.unsqueeze(0)]) #Torch combine them
+        self.food += [found_food.detach()] #Pytonic combine them for the class
+        if food.detach() > self.highest_num: #Check if found food is higher so 0 can enter the list
+            self.highest_num = food.detach()
+        print('food_calc', food_buffer * self.mask)
+        return (-torch.sum(food_buffer * self.mask) + 1 ) * (50 * (1-(self.highest_num/7))) #Apply the mask and sum.
 
 class RobFN(torch.autograd.Function):
     @staticmethod
@@ -133,13 +133,15 @@ def evaluation(rob, model: nn.Module, scaler: joblib.load, seq: torch.Tensor, de
             move_robobo(p, rob)
 
 def calc_loss(food_and_time: torch.Tensor, max_time: int, time_penalty: int, food_detect: FoodDetect):
+    print('fn reward', food_and_time)
     if food_and_time[0] > 0:
-        n_food_reward = -torch.ceil(food_and_time[0]*(torch.log10(food_and_time[0]))) + 7
+        n_food_reward = -torch.ceil(food_and_time[0]*(torch.log10(food_and_time[0]))) + 6
     else:
         n_food_reward = food_and_time[0] + 7
     sim_time = ((torch.pow(food_and_time[1], 2)*(1/max_time))) / max_time * time_penalty
-    # c_food = food_detect.add_food(food_and_time[0])
-    return n_food_reward + sim_time # + c_food
+    c_food = food_detect.add_food(food_and_time[0])
+    print('time, food loss', sim_time.item(), n_food_reward.item())
+    return c_food + n_food_reward + sim_time
 
 def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Optimizer, max_time: int, time_penalty: int, seq: torch.Tensor, detector: Blob_Detection) -> nn.Module:
     print('Started training')
@@ -149,7 +151,7 @@ def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Opt
         rob.play_simulation()
         start = time.time()
         food_detect = FoodDetect()
-        for step in range(240): #Take max 75 steps per round
+        while True: # Keep going unless 3 minutes is reached or all food is collected
             robfn = RobFN.apply #Define the custom grad layer
             orientation = rob.read_orientation()
             accelleration = rob.read_accel()
@@ -175,35 +177,35 @@ def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Opt
 
 def run_lstm_classification(
         rob: IRobobo, 
-        max_time=3*60*1000, time_penalty=5, 
+        max_time=3*60*1000, time_penalty=100, 
         seq_len=8, features=17, hidden_size=32, num_outputs=4, num_layers=2,
         eval_=False):
     
     if isinstance(rob, SimulationRobobo):
         rob.play_simulation()
 
-    # with torch.autograd.detect_anomaly():
-    print('connected')
-    # Setup things
-    rob.set_phone_tilt_blocking(110, 100) #Angle phone forward
-    scaler = joblib.load('software_powertrans_scaler.gz')
+    with torch.autograd.detect_anomaly():
+        print('connected')
+        # Setup things
+        rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
+        scaler = joblib.load('software_powertrans_scaler.gz')
 
-    seq = torch.zeros((1, seq_len, features), dtype=torch.float32)
-    detector = Blob_Detection(640, 480)
+        seq = torch.zeros((1, seq_len, features), dtype=torch.float32)
+        detector = Blob_Detection(640, 480)
 
-    # Define the model and set it into train mode, together with the optimizer
-    model = LSTM(features, hidden_size, num_outputs, num_layers)
+        # Define the model and set it into train mode, together with the optimizer
+        model = LSTM(features, hidden_size, num_outputs, num_layers)
 
-    # Eval model in hw
-    if not isinstance(rob, SimulationRobobo) or eval_:
-        evaluation(rob, model, scaler, seq, detector)
-        return
-    
-    # Define optimizer for training
-    optimizer = optim.Adam(params=model.parameters(), lr=0.05)
-    model = train(rob, model, scaler, optimizer, max_time, time_penalty, seq, detector)
+        # Eval model in hw
+        if not isinstance(rob, SimulationRobobo) or eval_:
+            evaluation(rob, model, scaler, seq, detector)
+            return
+        
+        # Define optimizer for training
+        optimizer = optim.Adam(params=model.parameters(), lr=0.05)
+        model = train(rob, model, scaler, optimizer, max_time, time_penalty, seq, detector)
 
-    torch.save(model.state_dict(), './model.ckpt')
+        torch.save(model.state_dict(), './model.ckpt')
 
-    if isinstance(rob, SimulationRobobo):
-        rob.stop_simulation()
+        if isinstance(rob, SimulationRobobo):
+            rob.stop_simulation()
