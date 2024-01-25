@@ -19,7 +19,6 @@ import torch, time, random
 import numpy as np
 import joblib
 
-scaler = joblib.load('software_powertrans_scaler.gz')
 
 def move_robobo(movement, rob):
     movement = movement.detach().numpy() #Use clone since detach doesnt properly work
@@ -36,10 +35,11 @@ def move_robobo(movement, rob):
 
 class RobFN(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, inp, rob):
+    def forward(ctx, inp, scaler, rob):
         ctx.save_for_backward(inp)
         move_robobo(inp, rob)
-        irs = torch.tensor(rob.read_irs(), dtype=torch.float32, requires_grad=True)
+        irs_inp = scaler.transform([rob.read_irs()])[0].tolist()
+        irs = torch.tensor(irs_inp, dtype=torch.float32, requires_grad=True)
         return irs
 
     @staticmethod
@@ -66,6 +66,7 @@ def run_lstm_classification(rob: IRobobo):
     seq = torch.zeros((1, seq_len, X_size), dtype=torch.float32)
     # Eval model in hw
     if not isinstance(rob, SimulationRobobo):
+        scaler = joblib.load('hardware_powertrans_scaler.gz')
         network.load_state_dict(torch.load('./model.ckpt'))
         network.eval()
         with torch.no_grad():
@@ -74,7 +75,9 @@ def run_lstm_classification(rob: IRobobo):
                 # Get the input data
                 orientation = rob.read_orientation()
                 accelleration = rob.read_accel()
-                x = torch.tensor(rob.read_irs() + [orientation.yaw] + [accelleration.x, accelleration.y, accelleration.z], dtype=torch.float32)
+                irs_inp = scaler.transform([rob.read_irs()])[0].tolist()
+                
+                x = torch.tensor(irs_inp + [orientation.yaw] + [accelleration.x, accelleration.y, accelleration.z], dtype=torch.float32)
                 seq = torch.cat([x.unsqueeze(0).unsqueeze(0), seq[:, :-1, :]], dim=1)
                 p = network(seq) #Do the forward pass
                 p = torch.argmax(nn.functional.softmax(p, dim=0))
@@ -84,6 +87,8 @@ def run_lstm_classification(rob: IRobobo):
     optimizer = optim.Adam(params=network.parameters(), lr=0.05)
 
     print('Started training')
+    scaler = joblib.load('software_powertrans_scaler.gz')
+    
     for round_ in range(20): #Reset the robobo and target 10 times with or without random pos
         # if rnd_pos:
         if round_ > 3: #Only create random positions after 3 rounds
@@ -104,7 +109,7 @@ def run_lstm_classification(rob: IRobobo):
             p = network(seq) #Do the forward pass
             p = p[0, -1, :]
             p = nn.functional.softmax(p, dim=0)
-            irs = robfn(p, *(rob,))
+            irs = robfn(p, scaler, *(rob,))
             loss = loss_fn(irs) #Calculate the euclidean distance
             print(f'round: {round_}, loss: {loss.item()}\n')
             loss.backward() #Do the backward pass
