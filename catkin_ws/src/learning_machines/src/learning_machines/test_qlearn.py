@@ -19,12 +19,6 @@ import torch, time, random
 import numpy as np
 import joblib
 
-# Define scalers for software / hardware
-if isinstance(rob, SimulationRobobo):
-    scaler = joblib.load('software_powertrans_scaler.gz')
-else:
-    scaler = joblib.load('hardware_powertrans_scaler.gz')
-
 
 class QLearningAgent:
     def __init__(self, num_actions, learning_rate=0.1, discount_factor=0.9, exploration_prob=0.0):
@@ -61,7 +55,13 @@ class QLearningAgent:
         self.q_table[(state, action)] = new_q
 
 
-def scale_and_return_ordered(irs):
+def get_current_state(scaler, irs):
+    front_sensors, back_sensors = scale_and_return_ordered(scaler, irs)
+    state = tuple(1 if value > 0.2 else 0 for value in front_sensors)
+    return state
+
+
+def scale_and_return_ordered(scaler, irs):
     irs = scaler.transform([irs])[0].tolist()
     # Front sensors fromt left to right!! Not default order
     front_sensors = [irs[7], irs[2], irs[4], irs[3], irs[5]]
@@ -71,13 +71,8 @@ def scale_and_return_ordered(irs):
     # front_sensors = [FrontLL, FrontL, FrontC, FrontR, FrontRR]
     # back_sensors = [BackL, BackC, BackR]
 
-def get_current_state(irs):
-    front_sensors, back_sensors = scale_and_return_ordered(irs)
-    state = tuple(1 if value > 0.2 else 0 for value in front_sensors)
-    return state
 
-
-def move_robobo_and_calc_reward(action, rob):
+def move_robobo_and_calc_reward(scaler, action, rob):
     forward_reward = 0
     if action == 0: #Move forward
         print("So going forward")
@@ -90,47 +85,49 @@ def move_robobo_and_calc_reward(action, rob):
         print("So going right")
         movement = [50, -50, 250]
     rob.move_blocking(int(movement[0]), int(movement[1]), int(movement[2]))
-    state = get_current_state(rob.read_irs())
+    state = get_current_state(scaler, rob.read_irs())
     reward = 5 - sum(state) + forward_reward
     return reward, state
 
 
 def run_qlearning_classification(rob: IRobobo):
-    if isinstance(rob, SimulationRobobo):
-        rob.play_simulation()
     print('connected')
 
     num_actions = 3  # Number of possible actions
     agent = QLearningAgent(num_actions)
 
-    state = get_current_state(rob.read_irs())
-
+    # Hardware test run
     if not isinstance(rob, SimulationRobobo):
+        scaler = joblib.load('hardware_powertrans_scaler.gz')
+        state = get_current_state(scaler, rob.read_irs())
         for step in range(240):  # Take max 75 steps per round
             action = agent.choose_action(state)
 
             # Simulate taking the chosen action and observe the next state and reward
             print(state)
-            reward, next_state = move_robobo_and_calc_reward(action,rob)  # Replace with your game logic
+            reward, next_state = move_robobo_and_calc_reward(scaler, action,rob)  # Replace with your game logic
             print("Reward:", reward)
 
             # Move to the next state for the next iteration
             state = next_state
         return
-    # Simulate a game loop
+
+    # Simulation training
+    scaler = joblib.load('software_powertrans_scaler.gz')
+    rob.play_simulation()
     for round in range(150):
         print(f"-=-=-=-=-=-=- Round {round} -=-=-=-=-=-=-=-=-=-")
         if round > 3: #Only create random positions after 3 rounds
             rob.set_position(Position((random.random()*2.4)-1.2, (random.random()*2.4)-1.2, 0.03), Orientation(-90, -90, -90))
             rob.set_target_position(Position((random.random()*2.4)-1.2, (random.random()*2.4)-1.2, 0.2))
         rob.play_simulation()
-        state = get_current_state(rob.read_irs())  # Replace with your function to get the current state
+        state = get_current_state(scaler, rob.read_irs())  # Replace with your function to get the current state
         for step in range(240):  # Take max 75 steps per round
             action = agent.choose_action(state)
 
             # Simulate taking the chosen action and observe the next state and reward
             print(state)
-            reward, next_state = move_robobo_and_calc_reward(action,rob)  # Replace with your game logic
+            reward, next_state = move_robobo_and_calc_reward(scaler, action,rob)  # Replace with your game logic
 
             # Update Q-value based on the observed reward and the Q-learning update rule
             print("Reward:", reward)
