@@ -25,7 +25,7 @@ class LSTM(nn.Module):
 #         return out
 
 class NN(nn.Module):
-    def __init__(self, input_dim: int, embedding_dim: int, hidden_dim: int, output_dim: int, b_size: int):
+    def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, num_layers: int):
         super().__init__()
         self.linear = nn.Linear(input_dim, hidden_dim)
         self.sigmoid = nn.Sigmoid()
@@ -33,6 +33,7 @@ class NN(nn.Module):
         self.tanh = nn.Tanh()
     
     def forward(self, x):
+        x = x[-1]
         x = self.linear(x)
         x = self.sigmoid(x)
         x = self.linear2(x)
