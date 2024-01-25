@@ -64,10 +64,9 @@ class Blob_Detection():
             x, y = int(keypoint.pt[0]), int(keypoint.pt[1])
             size_percent = (keypoint.size / (self.camera_width * self.camera_height)) * 100
             #x and y values along with the percentage of blob area
-            return x, y, size_percent
+            return [x, y, size_percent]
         else:
-            pass
-        time.sleep(3)
+            return [0, self.camera_height//2, 0]
 
 def move_robobo(movement, rob):
     movement = movement.detach().numpy() #Use clone since detach doesnt properly work
@@ -118,7 +117,7 @@ class RobFN(torch.autograd.Function):
             grad_input = torch.full((4,), torch.mean(grad_output)) #Use 1 for the rob_pos grad, *100 since the output of the model is like that
         return grad_input, None, None
 
-def evaluation(rob, model: nn.Module, scaler: joblib.load, seq: torch.Tensor):
+def evaluation(rob, model: nn.Module, scaler: joblib.load, seq: torch.Tensor, detector: Blob_Detection):
     model.load_state_dict(torch.load('./model.ckpt'))
     model.eval()
     with torch.no_grad():
@@ -127,7 +126,7 @@ def evaluation(rob, model: nn.Module, scaler: joblib.load, seq: torch.Tensor):
             # Get the input data
             orientation = rob.read_orientation()
             accelleration = rob.read_accel()
-            x = torch.tensor(scaler.transform([rob.read_irs()])[0].tolist() + [orientation.yaw, orientation.pitch, orientation.roll] + [accelleration.x, accelleration.y, accelleration.z], dtype=torch.float32)
+            x = torch.tensor(scaler.transform([rob.read_irs()])[0].tolist() + [orientation.yaw, orientation.pitch, orientation.roll] + [accelleration.x, accelleration.y, accelleration.z] + detector.blob_detect(rob), dtype=torch.float32)
             seq = torch.cat([seq[:, 1:, :], x.unsqueeze(0).unsqueeze(0)], dim=1)
             p = model(seq) #Do the forward pass
             p = nn.functional.softmax(p, dim=0)
@@ -142,7 +141,7 @@ def calc_loss(food_and_time: torch.Tensor, max_time: int, time_penalty: int, foo
     # c_food = food_detect.add_food(food_and_time[0])
     return n_food_reward + sim_time # + c_food
 
-def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Optimizer, max_time: int, time_penalty: int, seq: torch.Tensor) -> nn.Module:
+def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Optimizer, max_time: int, time_penalty: int, seq: torch.Tensor, detector: Blob_Detection) -> nn.Module:
     print('Started training')
     model.train()
     optimizer.zero_grad()
@@ -154,7 +153,7 @@ def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Opt
             robfn = RobFN.apply #Define the custom grad layer
             orientation = rob.read_orientation()
             accelleration = rob.read_accel()
-            x = torch.tensor(scaler.transform([rob.read_irs()])[0].tolist() + [orientation.yaw, orientation.pitch, orientation.roll] + [accelleration.x, accelleration.y, accelleration.z], dtype=torch.float32)
+            x = torch.tensor(scaler.transform([rob.read_irs()])[0].tolist() + [orientation.yaw, orientation.pitch, orientation.roll] + [accelleration.x, accelleration.y, accelleration.z] + detector.blob_detect(rob), dtype=torch.float32)
             seq = torch.cat([seq[:, 1:, :], x.unsqueeze(0).unsqueeze(0)], dim=1)
             p = model(seq) #Do the forward pass
             p = p[0, -1, :]
@@ -177,8 +176,12 @@ def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Opt
 def run_lstm_classification(
         rob: IRobobo, 
         max_time=3*60*1000, time_penalty=5, 
-        seq_len=8, features=14, hidden_size=32, num_outputs=4, num_layers=2,
+        seq_len=8, features=17, hidden_size=32, num_outputs=4, num_layers=2,
         eval_=False):
+    
+    if isinstance(rob, SimulationRobobo):
+        rob.play_simulation()
+
     # with torch.autograd.detect_anomaly():
     print('connected')
     # Setup things
@@ -186,18 +189,19 @@ def run_lstm_classification(
     scaler = joblib.load('software_powertrans_scaler.gz')
 
     seq = torch.zeros((1, seq_len, features), dtype=torch.float32)
+    detector = Blob_Detection(640, 480)
 
     # Define the model and set it into train mode, together with the optimizer
     model = LSTM(features, hidden_size, num_outputs, num_layers)
 
     # Eval model in hw
     if not isinstance(rob, SimulationRobobo) or eval_:
-        evaluation(rob, model, scaler, seq)
+        evaluation(rob, model, scaler, seq, detector)
         return
     
     # Define optimizer for training
     optimizer = optim.Adam(params=model.parameters(), lr=0.05)
-    model = train(rob, model, scaler, optimizer, max_time, time_penalty, seq)
+    model = train(rob, model, scaler, optimizer, max_time, time_penalty, seq, detector)
 
     torch.save(model.state_dict(), './model.ckpt')
 
