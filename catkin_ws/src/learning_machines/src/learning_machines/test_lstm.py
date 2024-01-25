@@ -65,7 +65,7 @@ class Blob_Detection():
         if keypoints:
             keypoint = keypoints[0]
             x, y = int(keypoint.pt[0]) / self.camera_width, int(keypoint.pt[1]) / self.camera_height
-            size_percent = (keypoint.size / (self.camera_width * self.camera_height)) * 100
+            # size_percent = (keypoint.size / (self.camera_width * self.camera_height)) * 100
             #x and y values along with the percentage of blob area
         return [x, y, size_percent]
         
@@ -114,6 +114,7 @@ class RobFN(torch.autograd.Function):
         # ctx.saved_tensors contains the input from the forward pass
         input, = ctx.saved_tensors
         grad_input = None
+        print(grad_output)
         print((torch.sum(grad_output)))
         if ctx.needs_input_grad[0]:
             grad_input = torch.full((4,), (torch.sum(grad_output))) #Use 1 for the rob_pos grad, *100 since the output of the model is like that
@@ -177,9 +178,7 @@ def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Opt
                 loss += (repr_trackr ** 2)
             else:
                 repr_trackr = 0
-            print(cam_corder[-1])
-            print(loss)
-            loss += (1 - cam_corder[-1]) * 10
+            loss += (100 - cam_corder[-1]) / 10
 
             print(f'round: {round_}, loss: {loss.item()}, time: {int(food_and_time[1].item())}, direction: {np.argmax(p.detach().numpy())}')
             loss.backward() #Do the backward pass

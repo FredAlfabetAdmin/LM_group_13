@@ -4,4 +4,4 @@
 param($p1)
 
 # Presumes you have CoppeliaSim extracted to ./CoppeliaSim
-.\CoppeliaSim\coppeliaSim.exe $PSBoundParameters["p1"] "-gREMOTEAPISERVERSERVICE_19999_FALSE_TRUE"
+coppeliaSim.exe $PSBoundParameters["p1"] "-gREMOTEAPISERVERSERVICE_19999_FALSE_TRUE"
