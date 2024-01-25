@@ -121,7 +121,7 @@ def run_lstm_classification(rob: IRobobo):
                 else:
                     n_food_reward = food_and_time[0] + 7
                 sim_time = ((torch.pow(food_and_time[1], 2)*(1/max_time))) / max_time * time_alpha
-                c_food = food_detect.add_food(food_and_time[0])
+                # c_food = food_detect.add_food(food_and_time[0])
                 loss =  n_food_reward + sim_time # + c_food
 
                 print(f'round: {round_}, loss: {loss.item()}')
