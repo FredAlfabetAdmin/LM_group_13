@@ -21,5 +21,5 @@ if __name__ == "__main__":
     #run_to_block_and_stop(rob)
     #forward_backward(rob)
     #run_obstacle_avoidance(rob)
-    blob_detection()
+    blob_detection(rob)
     #test_sens(rob)
