@@ -37,16 +37,16 @@ class FoodDetect():
         max_len = 10
         self.highest_num = 0
         self.food = torch.zeros((max_len,), dtype=torch.float32, requires_grad=True)
-        self.mask = torch.tensor([1-(x*(1/(max_len-1))) for x in range(max_len)], dtype=torch.float32, requires_grad=True)
+        self.mask = torch.tensor([1-(x*(1/(max_len))) for x in range(max_len)], dtype=torch.float32, requires_grad=True)
         tot_ = torch.sum(self.mask.detach())
 
     def add_food(self, food: int) -> int:
         # Add nr_food to list and apply the mask
         food -= self.highest_num #If found one it gets increased by 1 or 2 otherwise it will be 0
         self.food = self.food[1:] #Tick the buffer one over
-        self.food = torch.cat([self.food, food])
-        if self.highest_num > food[0]:
-            self.highest_num = food[0]
+        self.food = torch.cat([self.food, food.unsqueeze(0)])
+        if self.highest_num > food:
+            self.highest_num = food
         print('food_calc', self.food * self.mask)
         return (-torch.sum(self.food * self.mask) + 1 ) * 10 #Apply the mask and sum.
 
@@ -104,6 +104,7 @@ def run_lstm_classification(rob: IRobobo):
         for round_ in range(20): #Reset the robobo and target 10 times with or without random pos
             rob.play_simulation()
             start = time.time()
+            food_detect = FoodDetect()
             for step in range(240): #Take max 75 steps per round
                 robfn = RobFN.apply #Define the custom grad layer
                 orientation = rob.read_orientation()
@@ -120,13 +121,14 @@ def run_lstm_classification(rob: IRobobo):
                 else:
                     n_food_reward = food_and_time[0] + 7
                 sim_time = ((torch.pow(food_and_time[1], 2)*(1/max_time))) / max_time * time_alpha
-                loss =  n_food_reward + sim_time 
+                c_food = food_detect.add_food(food_and_time[0])
+                loss =  n_food_reward + sim_time # + c_food
 
                 print(f'round: {round_}, loss: {loss.item()}')
                 loss.backward() #Do the backward pass
                 optimizer.step() #Do a step in the learning space
                 optimizer.zero_grad() #Clear the gradients in the optimizer
-                if food_and_time[0] >= 7 or sim_time > 3*60*1000:
+                if food_and_time >= 7 or sim_time > 3*60*1000:
                     print('object_completed')
                     break
             rob.stop_simulation()
