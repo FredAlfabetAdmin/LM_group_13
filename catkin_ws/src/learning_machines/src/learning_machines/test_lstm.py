@@ -91,8 +91,8 @@ class PolicyNetwork(nn.Module):
     def __init__(self, input_size, output_size):
         super(PolicyNetwork, self).__init__()
         self.fc1 = nn.Linear(input_size, 64)
-        self.fc2 = nn.Linear(64, 64)
-        self.fc3 = nn.Linear(64, output_size)
+        self.fc2 = nn.Linear(64, 128)
+        self.fc3 = nn.Linear(128, output_size)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
@@ -116,18 +116,19 @@ class RobotEnvironment:
 
     def take_action(self, action):
         if np.random.random() < 0.7:
-            action = np.random.choice([0,1,2,3], p=action)
+            choose_action = np.random.choice([0,1,2,3], p=action)
         else:
-            action = np.argmax(action)
-        if action == 0: #Move forward
+            choose_action = np.argmax(action)
+        if choose_action == 0: #Move forward
             action = [50, 50, 250]
-        elif action == 1: #Move backward
+        elif choose_action == 1: #Move backward
             action = [-50, -50, 250]
-        elif action == 2: #Move left
+        elif choose_action == 2: #Move left
             action = [-50, 50, 125]
-        elif action == 3: #Move right
+        elif choose_action == 3: #Move right
             action = [50, -50, 125]
         self.rob.move_blocking(int(action[0]), int(action[1]), int(action[2]))
+        return choose_action
 
     def get_reward(self):
         diff = eucl_loss_fn([self.position.x, self.position.y], [self.rob.position().x, self.rob.position().y])
@@ -137,7 +138,7 @@ class RobotEnvironment:
         else:
             penality = 0
             self.repr_trackr = 0
-        return [(50 -self.detector.blob_detect(self.rob)[-1]) + self.detect.add_food(self.rob.nr_food_collected()) + penality]
+        return [((50 -self.detector.blob_detect(self.rob)[-1]) /5)+ self.detect.add_food(self.rob.nr_food_collected()) + penality]
     
     def start_env(self):
         self.rob.play_simulation()
@@ -199,26 +200,55 @@ class RLAgent:
         # Update the policy using the optimizer
         loss.backward()
         self.optimizer.step()
+        return loss.item()
 
-def train_agent(agent: RLAgent, env: RobotEnvironment, num_episodes=1000, max_steps_per_episode=100):
+def train_agent(agent: RLAgent, env: RobotEnvironment, num_episodes=1, max_steps_per_episode=100):
+    foods, acts, rws, losses = [], [], [], []
     for episode in range(num_episodes):
         env.start_env()
         state = env.get_state()
         total_reward = []
+        food, act, rw, lossl = [], [], [], []
         for _ in range(max_steps_per_episode):
             action = agent.get_action(state)
-            env.take_action(action)
+            acti = env.take_action(action)
             reward = env.get_reward()
             total_reward += reward
 
             # Store the experience for updating the policy
-            agent.update_policy(state, action, reward)
+            loss = agent.update_policy(state, action, reward)
 
             state = env.get_state()
-            print(f"Episode {episode + 1}, Step: {_}, Total Reward: {reward}, action: {np.argmax(action)}")
+
+            food.append(str(env.rob.nr_food_collected()))
+            act.append(str(acti))
+            rw.append(str(reward))
+            lossl.append(str(loss))
+            print(f"Episode {episode + 1}, Step: {_}, Total Reward: {reward}, action: {acti}")
+        foods.append(' '.join(food))
+        acts.append(' '.join(act))
+        rws.append(' '.join(rw))
+        losses.append(' '.join(lossl))
         print(f"Episode {episode + 1}, Total Reward: {np.mean(total_reward)}")
+        with open(f'./res_foods_{episode}.txt', "w") as file_:
+            file_.writelines(foods[-1])
+        with open(f'./res_actions_{episode}.txt', "w") as file_:
+            file_.writelines(acts[-1])
+        with open(f'./res_rewards_{episode}.txt', "w") as file_:
+            file_.writelines(rws[-1])
+        with open(f'./res_losses_{episode}.txt', "w") as file_:
+            file_.writelines(losses[-1])
         env.stop_env()
+        torch.save(agent.policy_network.state_dict(), f'./model_{episode}.ckpt')
         time.sleep(0.25)
+    with open('./res_foods.txt', "w") as file_:
+        file_.writelines(foods)
+    with open('./res_actions.txt', "w") as file_:
+        file_.writelines(acts)
+    with open('./res_rewards.txt', "w") as file_:
+        file_.writelines(rws)
+    with open('./res_losses.txt', "w") as file_:
+        file_.writelines(losses)
 
 def calc_loss(food_and_time: torch.Tensor, max_time: int, time_penalty: int, food_detect: FoodDetect):
     if food_and_time[0] > 0:
@@ -254,7 +284,7 @@ def run_lstm_classification(
 
     train_agent(agent, environment, num_episodes, max_steps_per_episode)
 
-    # torch.save(model.state_dict(), './model.ckpt')
+    torch.save(agent.policy_network.state_dict(), './model.ckpt')
 
     if isinstance(rob, SimulationRobobo):
         rob.stop_simulation()
