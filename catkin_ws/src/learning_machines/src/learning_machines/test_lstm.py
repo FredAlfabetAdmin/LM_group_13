@@ -58,15 +58,17 @@ class Blob_Detection():
 
         cv2.imwrite(str("./frame.png"), frame)
         cv2.imwrite(str("./gray_frame.png"), gray_frame)
+        
+        x, y = 0, 0.5
+        size_percent = gray_frame[gray_frame > 0.5].shape[0] / (gray_frame.shape[0] * gray_frame.shape[1]) * 100
 
         if keypoints:
             keypoint = keypoints[0]
             x, y = int(keypoint.pt[0]) / self.camera_width, int(keypoint.pt[1]) / self.camera_height
             size_percent = (keypoint.size / (self.camera_width * self.camera_height)) * 100
             #x and y values along with the percentage of blob area
-            return [x, y, size_percent]
-        else:
-            return [0, 0.5, 0]
+        return [x, y, size_percent]
+        
 
 def move_robobo(movement, rob):
     movement = movement.detach().numpy() #Use clone since detach doesnt properly work
@@ -112,9 +114,9 @@ class RobFN(torch.autograd.Function):
         # ctx.saved_tensors contains the input from the forward pass
         input, = ctx.saved_tensors
         grad_input = None
-        print(grad_output)
+        print((torch.sum(grad_output)))
         if ctx.needs_input_grad[0]:
-            grad_input = torch.full((4,), torch.mean(grad_output)) #Use 1 for the rob_pos grad, *100 since the output of the model is like that
+            grad_input = torch.full((4,), (torch.sum(grad_output))) #Use 1 for the rob_pos grad, *100 since the output of the model is like that
         return grad_input, None, None
 
 def evaluation(rob, model: nn.Module, scaler: joblib.load, seq: torch.Tensor, detector: Blob_Detection):
@@ -139,7 +141,7 @@ def calc_loss(food_and_time: torch.Tensor, max_time: int, time_penalty: int, foo
         n_food_reward = food_and_time[0] + 7
     sim_time = ((torch.pow(food_and_time[1], 2)*(1/max_time))) / max_time * time_penalty
     c_food = food_detect.add_food(food_and_time[0])
-    return c_food + n_food_reward + sim_time
+    return c_food + sim_time # n_food_reward
 
 def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Optimizer, max_time: int, time_penalty: int, seq: torch.Tensor, detector: Blob_Detection) -> nn.Module:
     print('Started training')
@@ -150,7 +152,8 @@ def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Opt
         start = time.time()
         food_detect = FoodDetect()
         repr_trackr = 0
-        while True: # Keep going unless 3 minutes is reached or all food is collected
+        rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
+        for _ in range(20): # Keep going unless 3 minutes is reached or all food is collected
             robfn = RobFN.apply #Define the custom grad layer
             orientation = rob.read_orientation()
             accelleration = rob.read_accel()
@@ -171,11 +174,14 @@ def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Opt
             eucl_dist = eucl_loss_fn(rob_pos, pre_train_pos)
             if eucl_dist < 0.05:
                 repr_trackr += 1
-                loss += (repr_trackr * 15)
+                loss += (repr_trackr ** 2)
             else:
                 repr_trackr = 0
+            print(cam_corder[-1])
+            print(loss)
+            loss += (1 - cam_corder[-1]) * 10
 
-            print(f'round: {round_}, loss: {loss.item()}')
+            print(f'round: {round_}, loss: {loss.item()}, time: {int(food_and_time[1].item())}, direction: {np.argmax(p.detach().numpy())}')
             loss.backward() #Do the backward pass
             optimizer.step() #Do a step in the learning space
             optimizer.zero_grad() #Clear the gradients in the optimizer
@@ -189,7 +195,7 @@ def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Opt
 def run_lstm_classification(
         rob: IRobobo, 
         max_time=3*60*1000, time_penalty=100, 
-        seq_len=32, features=15, hidden_size=32, num_outputs=4, num_layers=2,
+        seq_len=128, features=15, hidden_size=128, num_outputs=4, num_layers=1,
         eval_=False):
     
     if isinstance(rob, SimulationRobobo):
@@ -198,7 +204,6 @@ def run_lstm_classification(
     # with torch.autograd.detect_anomaly():
     print('connected')
     # Setup things
-    rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
     scaler = joblib.load('software_powertrans_scaler.gz')
 
     seq = torch.zeros((1, seq_len, features), dtype=torch.float32)
