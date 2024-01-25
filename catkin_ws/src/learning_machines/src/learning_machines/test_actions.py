@@ -192,6 +192,8 @@ def forward_backward(rob: IRobobo):
 
 def blob_detection(rob: IRobobo):
     #TODO: maybe change the camera size
+    rob.set_phone_tilt_blocking(110, 100)
+    rob.set_phone_pan_blocking(135, 100)
     camera_width = 640
     camera_height = 480
 
@@ -215,7 +217,9 @@ def blob_detection(rob: IRobobo):
 
     detector = cv2.SimpleBlobDetector_create(params)
 
-    while True:
+    print('entering detec')
+
+    for i in range(10):
         frame = rob.get_image_front()
 
         #TODO:resize if needed
@@ -234,26 +238,39 @@ def blob_detection(rob: IRobobo):
 
         #perform blob detection
         keypoints = detector.detect(gray_frame)
+
     
+        # if keypoints:
+        #     keypoint = keypoints[0]
+        #     x, y = int(keypoint.pt[0]), int(keypoint.pt[1])
+        #     size_percent = (keypoint.size / (frame.shape[0] * frame.shape[1])) * 100
+
+        #     # the number of white pixels in the blob
+        #     num_white_pixels = np.sum(green_mask[y:y+int(keypoint.size), x:x+int(keypoint.size)] == 255)
+
+        #     # total number of pixels in the blob region
+        #     total_pixels_in_blob = int(keypoint.size) * int(keypoint.size)
+
+        #     # ratio of white pixels to total pixels
+        #     ratio_white_to_total = num_white_pixels / total_pixels_in_blob
+
+        #     print(f"Blob detected at (x={x}, y={y}), "
+        #         f"Ratio of White Pixels to Total Pixels: {ratio_white_to_total}")
+
+
+        # print(keypoints)
+        # cv2.imwrite(str("./frame.png"), frame)
+        # cv2.imwrite(str("./gray_frame.png"), gray_frame)
+
         if keypoints:
             keypoint = keypoints[0]
             x, y = int(keypoint.pt[0]), int(keypoint.pt[1])
-            size_percent = (keypoint.size / (frame.shape[0] * frame.shape[1])) * 100
+            size_percent = (keypoint.size / (camera_width * camera_height)) * 100
+            print(x,y,size_percent)
 
-            # the number of white pixels in the blob
-            num_white_pixels = np.sum(green_mask[y:y+int(keypoint.size), x:x+int(keypoint.size)] == 255)
-
-            # total number of pixels in the blob region
-            total_pixels_in_blob = int(keypoint.size) * int(keypoint.size)
-
-            # ratio of white pixels to total pixels
-            ratio_white_to_total = num_white_pixels / total_pixels_in_blob
-
-            print(f"Blob detected at (x={x}, y={y}), "
-                f"Ratio of White Pixels to Total Pixels: {ratio_white_to_total}")
             #x and y values along with the percentage of blob area
             return x, y, size_percent
 
-        cv2.imshow("Original Frame", frame)
+        
         cv2.waitKey(1)
         time.sleep(3)
