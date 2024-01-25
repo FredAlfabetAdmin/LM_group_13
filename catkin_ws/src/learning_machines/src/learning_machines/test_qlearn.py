@@ -21,14 +21,14 @@ import joblib
 
 
 class QLearningAgent:
-    def __init__(self, num_actions, learning_rate=0.1, discount_factor=0.9, exploration_prob=0.0):
+    def __init__(self, num_actions, learning_rate=0.1, discount_factor=0.9, exploration_prob=0.2):
         self.num_actions = num_actions
         self.learning_rate = learning_rate
         self.discount_factor = discount_factor
         self.exploration_prob = exploration_prob
 
         # Q-table to store Q-values for each state-action pair
-        self.q_table = {((0, 0, 0, 0, 0), 0): 51.34152947264171, ((0, 0, 0, 0, 0), 2): 47.885198887833546, ((0, 0, 0, 0, 0), 1): 51.35592956589, ((0, 0, 0, 0, 1), 0): 31.791309250369554, ((0, 0, 1, 0, 1), 0): 32.38579216688231, ((0, 0, 1, 1, 1), 0): 32.55263074816037, ((1, 1, 1, 1, 1), 0): 33.40038355201896, ((1, 1, 1, 1, 1), 1): 24.123466656007597, ((0, 1, 1, 1, 1), 0): 16.415279564318787, ((1, 1, 1, 1, 1), 2): 40.864594250096815, ((1, 1, 1, 0, 0), 0): 36.55612680889666, ((0, 0, 1, 1, 1), 2): 23.15886917822469, ((1, 1, 1, 0, 0), 2): 47.801525485225525, ((0, 0, 1, 1, 1), 1): 20.557963944089483, ((1, 1, 1, 1, 0), 0): 36.2728283733809, ((1, 1, 1, 0, 0), 1): 31.799834605499093, ((1, 1, 1, 1, 0), 2): 31.57915195844804, ((0, 1, 1, 1, 1), 1): 4.7248174103738885, ((1, 1, 0, 1, 1), 0): 0.9224595946589913, ((1, 0, 1, 0, 0), 0): 40.75424790731623, ((1, 0, 0, 0, 0), 0): 51.443249629558295, ((1, 0, 0, 0, 0), 1): 43.791572396757616, ((1, 1, 1, 1, 0), 1): 15.620413244181048, ((0, 0, 0, 1, 1), 0): 24.97835496555777, ((1, 1, 0, 0, 0), 0): 42.52889689835159, ((0, 0, 1, 0, 0), 0): 35.2641949619424, ((1, 0, 1, 0, 0), 2): 27.306357159370616, ((1, 0, 0, 0, 0), 2): 51.940650603051324, ((1, 1, 1, 0, 1), 1): 25.053302420508444, ((1, 1, 0, 0, 0), 1): 25.53219228823734, ((0, 1, 1, 1, 0), 0): 13.192229690622792, ((0, 0, 1, 1, 0), 0): 23.530546945311308, ((0, 0, 1, 0, 0), 1): 19.275457285110583, ((0, 0, 0, 1, 0), 0): 0.5334365040925576, ((0, 1, 1, 0, 0), 0): 0.4, ((0, 1, 1, 0, 0), 1): 17.588119936031017, ((1, 1, 0, 0, 0), 2): 44.47216665337521, ((0, 0, 0, 1, 1), 2): 10.912454845487739, ((0, 0, 0, 1, 1), 1): 6.919188516892165, ((0, 0, 1, 1, 0), 1): 3.0931998777737397, ((0, 0, 0, 0, 1), 1): 49.640214445769296, ((0, 1, 1, 1, 0), 1): 1.5483052224728775, ((0, 0, 0, 1, 0), 1): 6.985808416497067, ((0, 0, 1, 0, 1), 2): 14.505215992874067, ((0, 1, 0, 0, 0), 0): 3.02912284204857, ((0, 1, 1, 1, 0), 2): 3.0319734486310335, ((0, 0, 1, 0, 1), 1): 3.329497994276941, ((0, 0, 1, 0, 0), 2): 28.094945959664642, ((0, 1, 1, 1, 1), 2): 31.4482077907151, ((1, 0, 1, 1, 1), 0): 19.146039626991538, ((0, 0, 0, 0, 1), 2): 13.458025181566569, ((1, 0, 1, 0, 1), 1): 10.159304189425045, ((1, 1, 1, 0, 1), 2): 4.90296366487878, ((1, 0, 1, 0, 0), 1): 5.2150992789125485, ((1, 0, 1, 0, 1), 0): 2.1860050390596304, ((0, 0, 1, 1, 0), 2): 4.372686036368711, ((1, 0, 0, 0, 1), 0): 1.3848521609529583, ((1, 1, 1, 0, 1), 0): 3.210385901795638, ((1, 0, 1, 1, 1), 1): 2.769125637706712, ((1, 1, 0, 0, 1), 0): 4.2792568017580335, ((1, 0, 0, 1, 1), 2): 3.588113991472497}
+        self.q_table = {((0, 0, 0, 0, 0), 0): 16.751523737780296, ((0, 0, 0, 0, 0), 1): 12.33398376013057, ((0, 0, 0, 0, 0), 2): 13.210192112780803, ((0, 0, 1, 0, 0), 0): 1.4111746196753698, ((0, 0, 1, 1, 0), 2): 0.0, ((1, 1, 0, 0, 0), 0): 2.3698431988910547, ((1, 1, 1, 0, 0), 0): 0.14211064545445848, ((1, 1, 1, 0, 0), 1): 0.03384014256515325, ((0, 1, 1, 1, 1), 0): 0.0, ((0, 0, 1, 1, 1), 0): 0.1792741161317035, ((0, 0, 1, 1, 1), 1): 6.497725653215419, ((0, 0, 0, 1, 1), 1): 6.851379649808463, ((0, 0, 0, 0, 1), 0): 1.3592966072185944, ((0, 0, 0, 0, 1), 1): 16.603345330537916, ((0, 0, 1, 0, 0), 1): 1.7071473273287496, ((0, 0, 0, 0, 1), 2): 0.3705698642679427, ((0, 0, 1, 1, 0), 0): 0.2, ((0, 1, 1, 1, 1), 1): 2.402990722215207, ((1, 0, 1, 0, 0), 0): 0.2, ((1, 1, 1, 1, 1), 0): 0.06488910597268528, ((1, 1, 1, 1, 1), 1): 3.0578588810104046, ((1, 1, 1, 1, 1), 2): 0.04753621342357239, ((0, 1, 1, 1, 0), 0): 0.2647834452515325, ((1, 1, 1, 1, 0), 0): 0.015795378413981424, ((1, 1, 1, 1, 0), 2): 0.8804266189601633, ((1, 1, 1, 0, 0), 2): 3.7548767236494656, ((1, 1, 0, 0, 0), 2): 0.4, ((1, 0, 0, 0, 0), 0): 2.5953310076429, ((1, 1, 0, 0, 0), 1): 0.0, ((1, 1, 1, 0, 1), 0): 0.24586904520305, ((1, 0, 0, 0, 0), 2): 5.8891548005517205, ((0, 0, 0, 1, 0), 0): 1.2488652621157428, ((1, 0, 0, 0, 1), 0): 0.7742486169514946, ((1, 1, 1, 0, 1), 2): 0.0, ((1, 0, 1, 1, 1), 0): 0.29042125853847106, ((0, 0, 1, 1, 1), 2): 0.15373311170223558, ((0, 0, 1, 0, 0), 2): 0.4179230102659894}
 
     def get_q_value(self, state, action):
         return self.q_table.get((state, action), 0.0)
@@ -38,7 +38,6 @@ class QLearningAgent:
         if np.random.rand() < self.exploration_prob:
             return np.random.choice(self.num_actions)  # Explore
         else:
-            print("-- delib --")
             # Exploit - choose action with the highest Q-value
             q_values = [self.get_q_value(state, a) for a in range(self.num_actions)]
             return np.argmax(q_values)
@@ -57,7 +56,8 @@ class QLearningAgent:
 
 def get_current_state(scaler, irs):
     front_sensors, back_sensors = scale_and_return_ordered(scaler, irs)
-    state = tuple(1 if value > 0.2 else 0 for value in front_sensors)
+    print(front_sensors)
+    state = tuple(1 if value > -0.3 else 0 for value in front_sensors)
     return state
 
 
@@ -72,40 +72,70 @@ def scale_and_return_ordered(scaler, irs):
     # back_sensors = [BackL, BackC, BackR]
 
 
-def move_robobo_and_calc_reward(scaler, action, rob):
-    forward_reward = 0
-    if action == 0: #Move forward
-        print("So going forward")
-        forward_reward = 1
-        movement = [50, 50, 250]
-    elif action == 1: #Move left
-        print("So going left")
-        movement = [-50, 50, 250]
-    elif action == 2: #Move right
-        print("So going right")
-        movement = [50, -50, 250]
-    rob.move_blocking(int(movement[0]), int(movement[1]), int(movement[2]))
-    state = get_current_state(scaler, rob.read_irs())
-    reward = 5 - sum(state) + forward_reward
-    return reward, state
+def eucl_distance(point1, point2):
+    delta1 = (point1[0] - point2[0])**2
+    delta2 = (point1[1] - point2[1])**2
+    total = delta1 + delta2
+    distance = np.sqrt(total)
+    return distance
+
+def move_robobo_and_calc_reward(scaler, action, rob, state):
+    extra_reward = 0
+
+    if isinstance(rob, SimulationRobobo):
+        if action == 0:  # Move forward
+            print("So going forward")
+            movement = [50, 50, 250]
+        elif action == 1:  # Move left
+            print("So going left")
+            movement = [-50, 50, 250]
+        elif action == 2:  # Move right
+            print("So going right")
+            movement = [50, -50, 250]
+        pos_before = rob.position()
+        rob.move_blocking(int(movement[0]), int(movement[1]), int(movement[2]))
+        pos_after = rob.position()
+        distance = eucl_distance([pos_before.x, pos_before.y], [pos_after.x, pos_after.y])
+
+        # If robot actually moves forward give it a reward
+        if distance > 0.04:
+            extra_reward += 2
+    else:
+        if action == 0:  # Move forward
+            movement = [20, 20, 250]
+        elif action == 1:  # Move left
+            print("Turning left")
+            movement = [-20, 20, 250]
+        elif action == 2:  # Move right
+            print("Turning right")
+            movement = [20, -20, 250]
+        rob.move_blocking(int(movement[0]), int(movement[1]), int(movement[2]))
+    next_state = get_current_state(scaler, rob.read_irs())
+
+    # If robobo turned away from object
+    if sum(state) > sum(next_state) and action != 0:
+        extra_reward += 3 + sum(state) - sum(next_state)
+
+    reward = extra_reward
+    return reward, next_state
 
 
 def run_qlearning_classification(rob: IRobobo):
     print('connected')
 
     num_actions = 3  # Number of possible actions
-    agent = QLearningAgent(num_actions)
 
     # Hardware test run
     if not isinstance(rob, SimulationRobobo):
+        agent = QLearningAgent(num_actions, exploration_prob=0)
         scaler = joblib.load('hardware_powertrans_scaler.gz')
         state = get_current_state(scaler, rob.read_irs())
-        for step in range(240):  # Take max 75 steps per round
+        while True:  # Take max 75 steps per round
             action = agent.choose_action(state)
 
             # Simulate taking the chosen action and observe the next state and reward
             print(state)
-            reward, next_state = move_robobo_and_calc_reward(scaler, action,rob)  # Replace with your game logic
+            reward, next_state = move_robobo_and_calc_reward(scaler, action, rob, state)  # Replace with your game logic
             print("Reward:", reward)
 
             # Move to the next state for the next iteration
@@ -114,6 +144,7 @@ def run_qlearning_classification(rob: IRobobo):
 
     # Simulation training
     scaler = joblib.load('software_powertrans_scaler.gz')
+    agent = QLearningAgent(num_actions, exploration_prob=0)
     rob.play_simulation()
     for round in range(150):
         print(f"-=-=-=-=-=-=- Round {round} -=-=-=-=-=-=-=-=-=-")
@@ -127,7 +158,7 @@ def run_qlearning_classification(rob: IRobobo):
 
             # Simulate taking the chosen action and observe the next state and reward
             print(state)
-            reward, next_state = move_robobo_and_calc_reward(scaler, action,rob)  # Replace with your game logic
+            reward, next_state = move_robobo_and_calc_reward(scaler, action, rob, state)  # Replace with your game logic
 
             # Update Q-value based on the observed reward and the Q-learning update rule
             print("Reward:", reward)
