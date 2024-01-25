@@ -20,35 +20,27 @@ import numpy as np
 import joblib
 import cv2
 
-def blob_detection(rob: IRobobo):
-    camera_width = 640
-    camera_height = 480
+class Blob_Detection():
+    def __init__(self, camera_width: int, camera_height: int, dark: bool = False) -> None:
+        self.camera_width = camera_width
+        self.camera_height = camera_height
 
-    params = cv2.SimpleBlobDetector_Params()
+        self.params = cv2.SimpleBlobDetector_Params()
+        self.params.filterByColor = True
+        self.params.blobColor = 0 if dark else 255
+        self.params.filterByCircularity = True
+        self.params.minCircularity = 0.6
+        self.params.filterByConvexity = True
+        self.params.minConvexity = 0.9
+        self.params.filterByInertia = True
+        self.params.minInertiaRatio = 0.6 
+        self.detector = cv2.SimpleBlobDetector_create(self.params)
 
-    params.filterByColor = True
-    params.blobColor = 255  # 0 for dark blobs, 255 for light blobs
-
-    #circularity for rectangles
-    params.filterByCircularity = True
-    params.minCircularity = 0.6 
-
-    #convexity completely covered
-    params.filterByConvexity = True
-    params.minConvexity = 0.9  
-
-    #inertia ratio (for rectangles)
-    params.filterByInertia = True
-    params.minInertiaRatio = 0.6 
-
-
-    detector = cv2.SimpleBlobDetector_create(params)
-
-    for i in range(10):
+    def blob_detect(self, rob: IRobobo):
         frame = rob.get_image_front()
 
         #TODO:resize if needed
-        frame = cv2.resize(frame, (camera_width, camera_height))
+        frame = cv2.resize(frame, (self.camera_width, self.camera_height))
         hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         lower_green = np.array([40, 40, 40])
         upper_green = np.array([80, 255, 255])
@@ -62,20 +54,19 @@ def blob_detection(rob: IRobobo):
         gray_frame = cv2.cvtColor(green_regions, cv2.COLOR_BGR2GRAY)
 
         #perform blob detection
-        keypoints = detector.detect(gray_frame)
+        keypoints = self.detector.detect(gray_frame)
 
-        print(keypoints)
         cv2.imwrite(str("./frame.png"), frame)
         cv2.imwrite(str("./gray_frame.png"), gray_frame)
 
         if keypoints:
             keypoint = keypoints[0]
             x, y = int(keypoint.pt[0]), int(keypoint.pt[1])
-            size_percent = (keypoint.size / (camera_width * camera_height)) * 100
-            print(x,y,size_percent)
+            size_percent = (keypoint.size / (self.camera_width * self.camera_height)) * 100
             #x and y values along with the percentage of blob area
             return x, y, size_percent
-
+        else:
+            pass
         time.sleep(3)
 
 def move_robobo(movement, rob):
