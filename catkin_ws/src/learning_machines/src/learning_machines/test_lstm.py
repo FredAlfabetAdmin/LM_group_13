@@ -116,15 +116,15 @@ class RobFN(torch.autograd.Function):
         grad_input = None
         print(grad_output)
         if ctx.needs_input_grad[0]:
-            grad_input = torch.full_like(input, grad_output[1]) #Use 1 for the rob_pos grad, *100 since the output of the model is like that
+            grad_input = torch.full_like(input, grad_output[1] * 100) #Use 1 for the rob_pos grad, *100 since the output of the model is like that
         return grad_input, None, None, None
 
 def evaluation(rob, model: nn.Module, scaler: joblib.load, seq: torch.Tensor, detector: Blob_Detection):
     model.load_state_dict(torch.load('./model.ckpt'))
     model.eval()
     with torch.no_grad():
+        rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
         for _ in range(200): #Take max 75 steps per round
-            robfn = RobFN.apply #Define the custom grad layer
             # Get the input data
             orientation = rob.read_orientation()
             accelleration = rob.read_accel()
@@ -171,16 +171,15 @@ def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Opt
             rob_pos = rob.position()
             rob_pos = torch.tensor([rob_pos.x, rob_pos.y], dtype=torch.float32)
 
-            # loss = calc_loss(food_and_time, max_time, time_penalty, food_detect)
-            # eucl_dist = eucl_loss_fn(rob_pos, pre_train_pos)
-            # if eucl_dist < 0.05:
-            #     repr_trackr += 1
-            #     loss += (repr_trackr ** 1.2)
-            # else:
-            #     repr_trackr = 0
-            # loss += (50 - cam_corder[-1]) / 5
+            loss = calc_loss(food_and_time, max_time, time_penalty, food_detect)
+            eucl_dist = eucl_loss_fn(rob_pos, pre_train_pos)
+            if eucl_dist < 0.05:
+                repr_trackr += 1
+                loss += (repr_trackr ** 1.2)
+            else:
+                repr_trackr = 0
+            loss += (50 - food_and_time[-1]) / 5
             # loss = nn.functional.relu((50 - food_and_time[-1]) - (50 - cam_corder[-1]))
-            loss = (50 - food_and_time[-1])
 
             print(f'round: {round_}, loss: {loss.item()}, time: {int(food_and_time[1].item())}, direction: {np.argmax(p.detach().numpy())}')
             loss.backward() #Do the backward pass
@@ -219,7 +218,7 @@ def run_lstm_classification(
         return
     
     # Define optimizer for training
-    optimizer = optim.SGD(params=model.parameters(), lr=0.1, momentum=0.9)
+    optimizer = optim.SGD(params=model.parameters(), lr=0.5, momentum=0.9)
     model = train(rob, model, scaler, optimizer, max_time, time_penalty, seq, detector)
 
     torch.save(model.state_dict(), './model.ckpt')
