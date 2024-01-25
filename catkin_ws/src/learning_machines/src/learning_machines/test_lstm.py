@@ -52,10 +52,10 @@ class FoodDetect():
 
 class RobFN(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, input, rob):
+    def forward(ctx, input, rob, start):
         ctx.save_for_backward(input)
         move_robobo(input, rob)
-        food_and_time = torch.tensor([rob.nr_food_collected(), rob.get_sim_time()], dtype=torch.float32, requires_grad=True)
+        food_and_time = torch.tensor([rob.nr_food_collected(), start - time.time()], dtype=torch.float32, requires_grad=True)
         return food_and_time
 
     @staticmethod
@@ -64,8 +64,8 @@ class RobFN(torch.autograd.Function):
         input, = ctx.saved_tensors
         grad_input = None
         if ctx.needs_input_grad[0]:
-            grad_input = torch.full((4,), grad_output[1]) #Use 1 for the rob_pos grad, *100 since the output of the model is like that
-        return grad_input, None
+            grad_input = torch.full((4,), torch.mean(grad_output)) #Use 1 for the rob_pos grad, *100 since the output of the model is like that
+        return grad_input, None, None
 
 def run_lstm_classification(rob: IRobobo):
     with torch.autograd.detect_anomaly():
@@ -103,6 +103,7 @@ def run_lstm_classification(rob: IRobobo):
         print('Started training')
         for round_ in range(20): #Reset the robobo and target 10 times with or without random pos
             rob.play_simulation()
+            start = time.time()
             for step in range(240): #Take max 75 steps per round
                 robfn = RobFN.apply #Define the custom grad layer
                 orientation = rob.read_orientation()
@@ -112,7 +113,7 @@ def run_lstm_classification(rob: IRobobo):
                 p = network(seq) #Do the forward pass
                 p = p[0, -1, :]
                 p = nn.functional.softmax(p, dim=0)
-                food_and_time = robfn(p, *(rob,)) #Calculate the custom robotics gradients
+                food_and_time = robfn(p, *(rob, start)) #Calculate the custom robotics gradients
 
                 if food_and_time[0] > 0:
                     n_food_reward = -torch.ceil(food_and_time[0]*(torch.log10(food_and_time[0]))) + 7
