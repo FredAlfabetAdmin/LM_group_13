@@ -6,3 +6,5 @@ CoppeliaSim/*
 catkin_ws/src/CMakeLists.txt
 *.ckpt
 model.ckpt
+sed*
+.DS_Store
