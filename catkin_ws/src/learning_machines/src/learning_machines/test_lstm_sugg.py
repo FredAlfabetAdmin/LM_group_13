@@ -89,7 +89,7 @@ def move_robobo(movement, rob):
     rob.move_blocking(int(movement[0]), int(movement[1]), int(movement[2]))
     return move_pr
 
-def evaluation(rob, model: nn.Module, scaler: joblib.load, seq: torch.Tensor, detector: Blob_Detection):
+def evaluation(rob, model: nn.Module, detector: Blob_Detection):
     model.load_state_dict(torch.load('./model.ckpt'))
     model.eval()
     with torch.no_grad():
@@ -101,7 +101,7 @@ def evaluation(rob, model: nn.Module, scaler: joblib.load, seq: torch.Tensor, de
             detector.blob_detect(rob)
             move_robobo(p, rob)
 
-def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Optimizer, max_time: int, time_penalty: int, seq: torch.Tensor, detector: Blob_Detection) -> nn.Module:
+def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer, detector: Blob_Detection) -> nn.Module:
     print('Started training')
     model.train()
     optimizer.zero_grad()
@@ -112,7 +112,8 @@ def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Opt
         start = time.time()
         rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
         loss_am, actions, food, target_am = [], [], [], []
-        for _ in range(50): # Keep going unless 3 minutes is reached or all food is collected
+        for _ in range(20):
+            # We train a visual classifier in the environment.
             img_, _ = detector.get_grey(rob)
             rob_position = rob.position()
             x = torch.tensor([img_], dtype=torch.float32)
@@ -122,10 +123,16 @@ def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Opt
             move = move_robobo(p, rob)
             new_position = rob.position()
             amount_green = detector.blob_detect(rob)[-1]
-            if amount_green > 2:
-                target = 0
+            if amount_green > 0: #If we see any green, continue forward
+                # Wall check otherwise keep going
+                if eucl_loss_fn(torch.tensor([rob_position.x, rob_position.y], dtype=torch.float32), torch.tensor([new_position.x, new_position.y], dtype=torch.float32)) < 0.05:
+                    target = 1
+                else:
+                    target = 0
+            # Otherwise we are in the wall most likely then:
             elif eucl_loss_fn(torch.tensor([rob_position.x, rob_position.y], dtype=torch.float32), torch.tensor([new_position.x, new_position.y], dtype=torch.float32)) < 0.05:
                 target = 1
+            # If we are doing that, but there are not enough green than turn.
             else:
                 if np.random.rand() > 0.5:
                     target = 2
@@ -183,9 +190,6 @@ def run_lstm_classification(
     # with torch.autograd.detect_anomaly():
     print('connected')
     # Setup things
-    scaler = joblib.load('software_powertrans_scaler.gz')
-
-    seq = torch.zeros((1, seq_len, features), dtype=torch.float32)
     detector = Blob_Detection(640, 480)
 
     # Define the model and set it into train mode, together with the optimizer
@@ -193,12 +197,12 @@ def run_lstm_classification(
 
     # Eval model in hw
     if not isinstance(rob, SimulationRobobo) or eval_:
-        evaluation(rob, model, scaler, seq, detector)
+        evaluation(rob, model, detector)
         return
     
     # Define optimizer for training
     optimizer = optim.Adam(params=model.parameters(), lr=0.001)
-    model = train(rob, model, scaler, optimizer, max_time, time_penalty, seq, detector)
+    model = train(rob, model, optimizer, detector)
 
     torch.save(model.state_dict(), './model.ckpt')
 
