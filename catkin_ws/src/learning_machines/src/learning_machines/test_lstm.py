@@ -28,11 +28,11 @@ class Blob_Detection():
         self.params = cv2.SimpleBlobDetector_Params()
         self.params.filterByColor = True
         self.params.blobColor = 0 if dark else 255
-        self.params.filterByCircularity = True
+        self.params.filterByCircularity = False
         self.params.minCircularity = 0.6
-        self.params.filterByConvexity = True
+        self.params.filterByConvexity = False
         self.params.minConvexity = 0.9
-        self.params.filterByInertia = True
+        self.params.filterByInertia = False
         self.params.minInertiaRatio = 0.5 
         self.detector = cv2.SimpleBlobDetector_create(self.params)
 
@@ -63,7 +63,6 @@ class Blob_Detection():
 
         cv2.imwrite(str("./frame.png"), frame)
         cv2.imwrite(str("./gray_frame.png"), gray_frame)
-        print(keypoints)
         if keypoints:
             keypoint = keypoints[0]
             x, y = int(keypoint.pt[0]), int(keypoint.pt[1])
@@ -78,12 +77,11 @@ class Blob_Detection():
             # ratio of white pixels to total pixels
             ratio_white_to_total = num_white_pixels / total_pixels_in_blob
 
-            print(f"Blob detected at (x={x}, y={y}), "
-                f"Ratio of White Pixels to Total Pixels: {ratio_white_to_total}")
+            # print(f"Blob detected at (x={x}, y={y}), "
+            #     f"Ratio of White Pixels to Total Pixels: {ratio_white_to_total}")
         else:
             x,y = 0,0
             size_percent = 0
-        print(x,y,size_percent)
         return [x, y, size_percent]
         
 def move_robobo(movement, rob):
@@ -102,7 +100,7 @@ def move_robobo(movement, rob):
     return move_pr
 
 def evaluation(rob, model: nn.Module, scaler: joblib.load, seq: torch.Tensor, detector: Blob_Detection):
-    model.load_state_dict(torch.load('./model_49.ckpt'))
+    model.load_state_dict(torch.load('./model_best.ckpt'))
     model.eval()
     with torch.no_grad():
         rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
@@ -120,7 +118,7 @@ def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Opt
     optimizer.zero_grad()
     loss_fn = nn.CrossEntropyLoss()
     all_loss, all_actions, all_food, all_target = [], [], [], []
-    for round_ in range(50): #Reset the robobo and target 10 times with or without random pos
+    for round_ in range(8): #Reset the robobo and target 10 times with or without random pos
         rob.play_simulation()
         start = time.time()
         rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
@@ -135,11 +133,13 @@ def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Opt
             move = move_robobo(p, rob)
             new_position = rob.position()
             x,y,amount_green = detector.blob_detect(rob)
-            print(x,y,amount_green)
-            if amount_green > 0.1:
+            if x != 0 and y != 0:
                 target = 0
             elif eucl_loss_fn(torch.tensor([rob_position.x, rob_position.y], dtype=torch.float32), torch.tensor([new_position.x, new_position.y], dtype=torch.float32)) < 0.05:
-                target = 1
+                if amount_green > 0:
+                    target = 0
+                else:
+                    target = 1
             else:
                 if np.random.rand() > 0.5:
                     target = 2
@@ -211,7 +211,7 @@ def run_lstm_classification(
         return
     
     # Define optimizer for training
-    optimizer = optim.Adam(params=model.parameters(), lr=0.001)
+    optimizer = optim.Adam(params=model.parameters(), lr=0.01)
     model = train(rob, model, scaler, optimizer, max_time, time_penalty, seq, detector)
 
     torch.save(model.state_dict(), './model.ckpt')
