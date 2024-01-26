@@ -108,30 +108,28 @@ class RobotEnvironment:
         self.repr_trackr = 0
 
     def get_state(self):
-        orientation = self.rob.read_orientation()
-        accelleration = self.rob.read_accel()
         self.detected = self.detector.blob_detect(self.rob)[-1]
-        self.position = self.rob.position()
-        return np.array(self.scaler.transform([self.rob.read_irs()])[0].tolist() + [orientation.yaw] + [accelleration.x, accelleration.y, accelleration.z] + [self.detected])
+        irs = self.scaler.transform([self.rob.read_irs()])[0].tolist()
+        front_sensors = [irs[7], irs[2], irs[4], irs[3], irs[5]]
+        state = [1 if value > -0.3 else 0 for value in front_sensors]
+        return np.array(state + [self.detected])
 
     def take_action(self, action):
         if np.random.random() < 0.7:
-            choose_action = np.random.choice([0,1,2,3], p=action)
+            choose_action = np.random.choice([0,1,2], p=action)
         else:
             choose_action = np.argmax(action)
         if choose_action == 0: #Move forward
             action = [50, 50, 250]
-        elif choose_action == 1: #Move backward
-            action = [-50, -50, 250]
-        elif choose_action == 2: #Move left
+        elif choose_action == 1: #Move left
             action = [-50, 50, 125]
-        elif choose_action == 3: #Move right
+        elif choose_action == 2: #Move right
             action = [50, -50, 125]
         self.rob.move_blocking(int(action[0]), int(action[1]), int(action[2]))
         return choose_action
 
     def get_reward(self):
-        diff = eucl_loss_fn([self.position.x, self.position.y], [self.rob.position().x, self.rob.position().y])
+        diff = eucl_loss_fn([self.rob.position().x, self.rob.position().y], [self.rob.position().x, self.rob.position().y])
         if diff < 0.05:
             self.repr_trackr += 1
             penality = (self.repr_trackr ** 1.1)
@@ -214,6 +212,10 @@ def train_agent(agent: RLAgent, env: RobotEnvironment, num_episodes=1, max_steps
             acti = env.take_action(action)
             reward = env.get_reward()
             total_reward += reward
+            print("-=-=-=-=-")
+            print(state)
+            print(action)
+            print(reward)
 
             # Store the experience for updating the policy
             loss = agent.update_policy(state, action, reward)
@@ -262,7 +264,7 @@ def calc_loss(food_and_time: torch.Tensor, max_time: int, time_penalty: int, foo
 def run_lstm_classification(
         rob: IRobobo, 
         max_time=1.5*60*1000, time_penalty=100, 
-        seq_len=128, features=13, hidden_size=128, num_outputs=4, num_layers=1,
+        seq_len=128, features=6, hidden_size=128, num_outputs=3, num_layers=1,
         eval_=False):
     
     if isinstance(rob, SimulationRobobo):
