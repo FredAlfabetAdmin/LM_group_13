@@ -152,7 +152,7 @@ class RobotEnvironment:
 class RLAgent:
     def __init__(self, state_size, action_size):
         self.policy_network = PolicyNetwork(state_size, action_size)
-        self.optimizer = optim.Adam(self.policy_network.parameters(), lr=0.1)
+        self.optimizer = optim.Adam(self.policy_network.parameters(), lr=0.05)
         self.gamma = 0.99  # Discount factor
         self.epsilon_clip = 0.2  # PPO clipping parameter
 
@@ -222,9 +222,9 @@ def train_agent(agent: RLAgent, env: RobotEnvironment, num_episodes=1, max_steps
 
             food.append(str(env.rob.nr_food_collected()))
             act.append(str(acti))
-            rw.append(str(reward))
+            rw.append(str(reward[0]))
             lossl.append(str(loss))
-            print(f"Episode {episode + 1}, Step: {_}, Total Reward: {reward}, action: {acti}")
+            print(f"Episode {episode + 1}, Step: {_}, Total Reward: {reward[0]}, action: {acti}")
         foods.append(' '.join(food))
         acts.append(' '.join(act))
         rws.append(' '.join(rw))
