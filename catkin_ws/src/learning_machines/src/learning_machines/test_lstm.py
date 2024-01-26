@@ -13,7 +13,7 @@ from robobo_interface.datatypes import (
     Orientation,
 )
 
-from .lstm import eucl_loss_fn, LSTM
+from .lstm import *
 from torch import optim, nn
 import torch, time, random
 import numpy as np
@@ -52,6 +52,8 @@ class Blob_Detection():
         green_regions = cv2.bitwise_and(frame, frame, mask=green_mask)
 
         gray_frame = cv2.cvtColor(green_regions, cv2.COLOR_BGR2GRAY)
+
+        return gray_frame
 
         #perform blob detection
         keypoints = self.detector.detect(gray_frame)
@@ -155,16 +157,10 @@ def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Opt
         rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
         for _ in range(50): # Keep going unless 3 minutes is reached or all food is collected
             robfn = RobFN.apply #Define the custom grad layer
-            orientation = rob.read_orientation()
-            accelleration = rob.read_accel()
             cam_corder = detector.blob_detect(rob)
-            pre_train_pos = rob.position()
-            pre_train_pos = torch.tensor([pre_train_pos.x, pre_train_pos.y], dtype=torch.float32)
-            x = torch.tensor(scaler.transform([rob.read_irs()])[0].tolist() + [orientation.yaw] + [accelleration.x, accelleration.y, accelleration.z] + [cam_corder[-1]], dtype=torch.float32)
-            seq = torch.cat([seq[:, 1:, :], x.unsqueeze(0).unsqueeze(0)], dim=1)
-            p = model(seq) #Do the forward pass
-            p = p[0, -1, :]
-            # p = p[0]
+            x = torch.tensor([cam_corder], dtype=torch.float32)
+            p = model(x) #Do the forward pass
+            p = p[0]
             p = nn.functional.softmax(p, dim=0)
             food_and_time = robfn(p, *(rob, start, detector)) #Calculate the custom robotics gradients
 
@@ -210,7 +206,7 @@ def run_lstm_classification(
     detector = Blob_Detection(640, 480)
 
     # Define the model and set it into train mode, together with the optimizer
-    model = LSTM(features, hidden_size, num_outputs, num_layers)
+    model = CNN(num_outputs)
 
     # Eval model in hw
     if not isinstance(rob, SimulationRobobo) or eval_:

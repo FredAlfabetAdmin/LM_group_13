@@ -12,17 +12,36 @@ class LSTM(nn.Module):
         output, _ = self.lstm(x)
         output = self.fc(output)
         return output
+    
+class CNN(nn.Module):
+    def __init__(self, num_classes=4):
+        super(SimpleCNN, self).__init__()
+        self.conv1 = nn.Conv2d(1, 16, kernel_size=3, stride=1, padding=1)  # Change in_channels to 1
+        self.relu1 = nn.ReLU()
+        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
 
-# class LSTM(nn.Module):
-#     def __init__(self, input_size, hidden_size, output_size):
-#         super().__init__()
-#         self.lstm = nn.LSTM(input_size, hidden_size, batch_first=True)
-#         self.fc = nn.Linear(hidden_size, output_size)
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1)
+        self.relu2 = nn.ReLU()
+        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
 
-#     def forward(self, x):
-#         out, _ = self.lstm(x)
-#         out = self.fc(out[:, -1, :])  # Take the output from the last time step
-#         return out
+        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
+        self.relu3 = nn.ReLU()
+        self.pool3 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        # Adjusted fully connected layers to accommodate the new input size
+        self.fc1 = nn.Linear(64 * (430//8) * (680//8), 128)
+        self.relu4 = nn.ReLU()
+        self.fc2 = nn.Linear(128, num_classes)
+
+    def forward(self, x):
+        x = self.pool1(self.relu1(self.conv1(x)))
+        x = self.pool2(self.relu2(self.conv2(x)))
+        x = self.pool3(self.relu3(self.conv3(x)))
+
+        x = x.view(-1, 64 * (640//8) * (480//8))  # Adjusted to the new input size
+        x = self.relu4(self.fc1(x))
+        x = self.fc2(x)
+        return x
 
 class NN(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, num_layers: int):
