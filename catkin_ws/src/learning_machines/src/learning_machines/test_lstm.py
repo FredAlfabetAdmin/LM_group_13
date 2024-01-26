@@ -33,7 +33,7 @@ class Blob_Detection():
         self.params.filterByConvexity = True
         self.params.minConvexity = 0.9
         self.params.filterByInertia = True
-        self.params.minInertiaRatio = 0.6 
+        self.params.minInertiaRatio = 0.5 
         self.detector = cv2.SimpleBlobDetector_create(self.params)
 
     def get_grey(self, rob: IRobobo):
@@ -63,7 +63,7 @@ class Blob_Detection():
 
         cv2.imwrite(str("./frame.png"), frame)
         cv2.imwrite(str("./gray_frame.png"), gray_frame)
-        
+        print(keypoints)
         if keypoints:
             keypoint = keypoints[0]
             x, y = int(keypoint.pt[0]), int(keypoint.pt[1])
@@ -80,6 +80,10 @@ class Blob_Detection():
 
             print(f"Blob detected at (x={x}, y={y}), "
                 f"Ratio of White Pixels to Total Pixels: {ratio_white_to_total}")
+        else:
+            x,y = 0,0
+            size_percent = 0
+        print(x,y,size_percent)
         return [x, y, size_percent]
         
 def move_robobo(movement, rob):
@@ -98,14 +102,15 @@ def move_robobo(movement, rob):
     return move_pr
 
 def evaluation(rob, model: nn.Module, scaler: joblib.load, seq: torch.Tensor, detector: Blob_Detection):
-    model.load_state_dict(torch.load('./model.ckpt'))
+    model.load_state_dict(torch.load('./model_49.ckpt'))
     model.eval()
     with torch.no_grad():
         rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
         while True:
             # Get the input data
-            img_, _ = detector.get_grey(rob)
-            p = model(img_) #Do the forward pass
+            img_, _, _ = detector.get_grey(rob)
+            x = torch.tensor([img_], dtype=torch.float32)
+            p = model(x) #Do the forward pass
             detector.blob_detect(rob)
             move_robobo(p, rob)
 
@@ -121,7 +126,7 @@ def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Opt
         rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
         loss_am, actions, food, target_am = [], [], [], []
         for _ in range(50): # Keep going unless 3 minutes is reached or all food is collected
-            img_, _ = detector.get_grey(rob)
+            img_, _, _ = detector.get_grey(rob)
             rob_position = rob.position()
             x = torch.tensor([img_], dtype=torch.float32)
             p = model(x) #Do the forward pass
@@ -129,8 +134,9 @@ def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Opt
             # p = 
             move = move_robobo(p, rob)
             new_position = rob.position()
-            amount_green = detector.blob_detect(rob)[-1]
-            if amount_green > 2:
+            x,y,amount_green = detector.blob_detect(rob)
+            print(x,y,amount_green)
+            if amount_green > 0.1:
                 target = 0
             elif eucl_loss_fn(torch.tensor([rob_position.x, rob_position.y], dtype=torch.float32), torch.tensor([new_position.x, new_position.y], dtype=torch.float32)) < 0.05:
                 target = 1
