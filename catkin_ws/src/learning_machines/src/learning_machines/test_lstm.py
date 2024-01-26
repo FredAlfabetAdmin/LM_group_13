@@ -53,10 +53,10 @@ class Blob_Detection():
 
         gray_frame = cv2.cvtColor(green_regions, cv2.COLOR_BGR2GRAY)
 
-        return gray_frame, frame
+        return gray_frame, frame, green_mask
 
     def blob_detect(self, rob: IRobobo):
-        gray_frame, frame = self.get_grey(rob)
+        gray_frame, frame, green_mask = self.get_grey(rob)
 
         #perform blob detection
         keypoints = self.detector.detect(gray_frame)
@@ -64,14 +64,22 @@ class Blob_Detection():
         cv2.imwrite(str("./frame.png"), frame)
         cv2.imwrite(str("./gray_frame.png"), gray_frame)
         
-        x, y = 0, 0.5
-        size_percent = gray_frame[gray_frame > 0].shape[0] / (gray_frame.shape[0] * gray_frame.shape[1]) * 100
-
         if keypoints:
             keypoint = keypoints[0]
-            x, y = int(keypoint.pt[0]) / self.camera_width, int(keypoint.pt[1]) / self.camera_height
-            # size_percent = (keypoint.size / (self.camera_width * self.camera_height)) * 100
-            #x and y values along with the percentage of blob area
+            x, y = int(keypoint.pt[0]), int(keypoint.pt[1])
+            size_percent = (keypoint.size / (frame.shape[0] * frame.shape[1])) * 100
+
+            # the number of white pixels in the blob
+            num_white_pixels = np.sum(green_mask[y:y+int(keypoint.size), x:x+int(keypoint.size)] == 255)
+
+            # total number of pixels in the blob region
+            total_pixels_in_blob = int(keypoint.size) * int(keypoint.size)
+
+            # ratio of white pixels to total pixels
+            ratio_white_to_total = num_white_pixels / total_pixels_in_blob
+
+            print(f"Blob detected at (x={x}, y={y}), "
+                f"Ratio of White Pixels to Total Pixels: {ratio_white_to_total}")
         return [x, y, size_percent]
         
 def move_robobo(movement, rob):
