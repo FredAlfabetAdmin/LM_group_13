@@ -36,7 +36,7 @@ class Blob_Detection():
         self.params.minInertiaRatio = 0.6 
         self.detector = cv2.SimpleBlobDetector_create(self.params)
 
-    def blob_detect(self, rob: IRobobo):
+    def get_grey(self, rob: IRobobo):
         frame = rob.get_image_front()
 
         #TODO:resize if needed
@@ -53,7 +53,10 @@ class Blob_Detection():
 
         gray_frame = cv2.cvtColor(green_regions, cv2.COLOR_BGR2GRAY)
 
-        return gray_frame
+        return gray_frame, frame
+
+    def blob_detect(self, rob: IRobobo):
+        gray_frame, frame = self.get_grey(rob)
 
         #perform blob detection
         keypoints = self.detector.detect(gray_frame)
@@ -62,7 +65,7 @@ class Blob_Detection():
         cv2.imwrite(str("./gray_frame.png"), gray_frame)
         
         x, y = 0, 0.5
-        size_percent = gray_frame[gray_frame > 0.5].shape[0] / (gray_frame.shape[0] * gray_frame.shape[1]) * 100
+        size_percent = gray_frame[gray_frame > 0].shape[0] / (gray_frame.shape[0] * gray_frame.shape[1]) * 100
 
         if keypoints:
             keypoint = keypoints[0]
@@ -73,17 +76,19 @@ class Blob_Detection():
         
 
 def move_robobo(movement, rob):
+    movement = nn.functional.softmax(movement.detach(), dim=0)
     movement = movement.detach().numpy() #Use clone since detach doesnt properly work
-    movement = np.argmax(movement)
-    if movement == 0: #Move forward
+    move_pr = np.argmax(movement)
+    if move_pr == 0: #Move forward
         movement = [50, 50, 250]
-    elif movement == 1: #Move backward
+    elif move_pr == 1: #Move backward
         movement = [-50, -50, 250]
-    elif movement == 2: #Move left
+    elif move_pr == 2: #Move left
         movement = [-50, 50, 125]
-    elif movement == 3: #Move right
+    elif move_pr == 3: #Move right
         movement = [50, -50, 125]
     rob.move_blocking(int(movement[0]), int(movement[1]), int(movement[2]))
+    return move_pr
 
 class FoodDetect():
     def __init__(self):
@@ -149,43 +154,70 @@ def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Opt
     print('Started training')
     model.train()
     optimizer.zero_grad()
-    for round_ in range(20): #Reset the robobo and target 10 times with or without random pos
+    loss_fn = nn.CrossEntropyLoss()
+    all_loss, all_actions, all_food, all_target = [], [], [], []
+    for round_ in range(50): #Reset the robobo and target 10 times with or without random pos
         rob.play_simulation()
         start = time.time()
-        food_detect = FoodDetect()
-        repr_trackr = 0
         rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
+        loss_am, actions, food, target_am = [], [], [], []
         for _ in range(50): # Keep going unless 3 minutes is reached or all food is collected
-            robfn = RobFN.apply #Define the custom grad layer
-            cam_corder = detector.blob_detect(rob)
-            x = torch.tensor([cam_corder], dtype=torch.float32)
+            img_, _ = detector.get_grey(rob)
+            rob_position = rob.position()
+            x = torch.tensor([img_], dtype=torch.float32)
             p = model(x) #Do the forward pass
             p = p[0]
-            p = nn.functional.softmax(p, dim=0)
-            food_and_time = robfn(p, *(rob, start, detector)) #Calculate the custom robotics gradients
-
-            rob_pos = rob.position()
-            rob_pos = torch.tensor([rob_pos.x, rob_pos.y], dtype=torch.float32)
-
-            loss = calc_loss(food_and_time, max_time, time_penalty, food_detect)
-            eucl_dist = eucl_loss_fn(rob_pos, pre_train_pos)
-            if eucl_dist < 0.05:
-                repr_trackr += 1
-                loss += (repr_trackr ** 1.2)
+            # p = 
+            move = move_robobo(p, rob)
+            new_position = rob.position()
+            amount_green = detector.blob_detect(rob)[-1]
+            if amount_green > 2:
+                target = 0
+            elif eucl_loss_fn(torch.tensor([rob_position.x, rob_position.y], dtype=torch.float32), torch.tensor([new_position.x, new_position.y], dtype=torch.float32)) < 0.05:
+                target = 1
             else:
-                repr_trackr = 0
-            loss += (50 - food_and_time[-1]) / 5
-            # loss = nn.functional.relu((50 - food_and_time[-1]) - (50 - cam_corder[-1]))
+                if np.random.rand() > 0.5:
+                    target = 2
+                else:
+                    target = 3
+            target = torch.tensor(target, dtype=torch.long)
+            loss = loss_fn(p, target)
 
-            print(f'round: {round_}, loss: {loss.item()}, time: {int(food_and_time[1].item())}, direction: {np.argmax(p.detach().numpy())}')
             loss.backward() #Do the backward pass
             optimizer.step() #Do a step in the learning space
             optimizer.zero_grad() #Clear the gradients in the optimizer
-            if food_and_time[0] >= 7 or food_and_time[1] > 3*60*1000:
-                print(f'object_completed within time: {food_and_time[1]}, collected: {food_and_time[0]}')
+            print(f'round: {round_}, loss: {loss.item()}, nr_food: {rob.nr_food_collected()}, target: {target.item()}, direction: {move}')
+            loss_am.append(str(loss.item()))
+            actions.append(str(move))
+            food.append(str(rob.nr_food_collected()))
+            target_am.append(str(target.item()))
+            if rob.nr_food_collected() >= 7 or time.time() - start > 3*60*1000:
+                print(f'object_completed within time: {time.time() - start}, collected: {rob.nr_food_collected()}')
                 break
+        all_loss.append(' '.join(loss_am))
+        all_actions.append(' '.join(actions))
+        all_food.append(' '.join(food))
+        all_target.append(' '.join(target_am))
+        with open(f'./res_loss_{round_}.txt', "w") as file_:
+            file_.writelines(all_loss[-1])
+        with open(f'./res_food_{round_}.txt', "w") as file_:
+            file_.writelines(all_food[-1])
+        with open(f'./res_target_{round_}.txt', "w") as file_:
+            file_.writelines(all_target[-1])
+        with open(f'./res_action_{round_}.txt', "w") as file_:
+            file_.writelines(all_actions[-1])
+        torch.save(model.state_dict(), f'./model_{round_}.ckpt')
+        
         rob.stop_simulation()
         time.sleep(0.25)
+    with open(f'./res_loss.txt', "w") as file_:
+        file_.writelines(all_loss)
+    with open(f'./res_food.txt', "w") as file_:
+        file_.writelines(all_food)
+    with open(f'./res_target.txt', "w") as file_:
+        file_.writelines(all_target)
+    with open(f'./res_action.txt', "w") as file_:
+        file_.writelines(all_actions)
     return model
 
 def run_lstm_classification(
@@ -214,7 +246,7 @@ def run_lstm_classification(
         return
     
     # Define optimizer for training
-    optimizer = optim.SGD(params=model.parameters(), lr=0.5, momentum=0.9)
+    optimizer = optim.Adam(params=model.parameters(), lr=0.001)
     model = train(rob, model, scaler, optimizer, max_time, time_penalty, seq, detector)
 
     torch.save(model.state_dict(), './model.ckpt')

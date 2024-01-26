@@ -15,7 +15,7 @@ class LSTM(nn.Module):
     
 class CNN(nn.Module):
     def __init__(self, num_classes=4):
-        super(SimpleCNN, self).__init__()
+        super().__init__()
         self.conv1 = nn.Conv2d(1, 16, kernel_size=3, stride=1, padding=1)  # Change in_channels to 1
         self.relu1 = nn.ReLU()
         self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
@@ -29,7 +29,7 @@ class CNN(nn.Module):
         self.pool3 = nn.MaxPool2d(kernel_size=2, stride=2)
 
         # Adjusted fully connected layers to accommodate the new input size
-        self.fc1 = nn.Linear(64 * (430//8) * (680//8), 128)
+        self.fc1 = nn.Linear(64 * (640//8) * (480//8), 128)
         self.relu4 = nn.ReLU()
         self.fc2 = nn.Linear(128, num_classes)
 
@@ -37,7 +37,6 @@ class CNN(nn.Module):
         x = self.pool1(self.relu1(self.conv1(x)))
         x = self.pool2(self.relu2(self.conv2(x)))
         x = self.pool3(self.relu3(self.conv3(x)))
-
         x = x.view(-1, 64 * (640//8) * (480//8))  # Adjusted to the new input size
         x = self.relu4(self.fc1(x))
         x = self.fc2(x)
