@@ -271,13 +271,19 @@ def run_lstm_classification(
     # with torch.autograd.detect_anomaly():
     print('connected')
 
-    # Eval model in hw
-    if not isinstance(rob, SimulationRobobo) or eval_:
-        # evaluation(rob, model, scaler, seq, detector)
-        return
-    
     agent = RLAgent(features, num_outputs)
     environment = RobotEnvironment(rob)
+
+    # Eval model in hw
+    if not isinstance(rob, SimulationRobobo) or eval_:
+        agent.policy_network.load_state_dict(torch.load('./model_134.ckpt'))
+        agent.policy_network.eval()
+        with torch.no_grad():
+            rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
+            while True:
+                action = agent.get_action(state)
+                acti = env.take_action(action)
+        return
 
     max_steps_per_episode = 100  # Adjust as needed
     num_episodes = 1000  # Adjust as needed
