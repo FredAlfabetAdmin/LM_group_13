@@ -189,7 +189,7 @@ def run_lstm_classification(
         rob: IRobobo, 
         max_time=1.5*60*1000, time_penalty=100, 
         seq_len=128, features=13, hidden_size=128, num_outputs=4, num_layers=1,
-        eval_=False):
+        eval_=True):
     
     if isinstance(rob, SimulationRobobo):
         rob.play_simulation()
