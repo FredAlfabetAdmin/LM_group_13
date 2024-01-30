@@ -8,3 +8,4 @@ catkin_ws/src/CMakeLists.txt
 model.ckpt
 sed*
 .DS_Store
+.idea/*
