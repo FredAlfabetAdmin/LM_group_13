@@ -19,138 +19,147 @@ import torch, time, random
 import numpy as np
 import joblib
 import cv2
+import math
 
-class Blob_Detection():
-    def __init__(self, camera_width: int, camera_height: int, dark: bool = False) -> None:
-        self.camera_width = camera_width
-        self.camera_height = camera_height
+def eucl_fn(point1, point2):
+    return math.sqrt((point1[0]-point2[0])**2 + (point1[1]-point2[1])**2)
 
-        self.params = cv2.SimpleBlobDetector_Params()
-        self.params.filterByColor = True
-        self.params.blobColor = 0 if dark else 255
-        self.params.filterByCircularity = False
-        self.params.minCircularity = 0.6
-        self.params.filterByConvexity = False
-        self.params.minConvexity = 0.9
-        self.params.filterByInertia = False
-        self.params.minInertiaRatio = 0.5 
-        self.detector = cv2.SimpleBlobDetector_create(self.params)
+def get_img(rob: IRobobo):
+    img = rob.get_image_front()
 
-    def get_grey(self, rob: IRobobo):
-        frame = rob.get_image_front()
+    img = cv2.resize(img, (640, 480))
+    # Convert the image to HSV color space (Hue, Saturation, Value)
+    # cv2.imwrite(str("./frame_org.png"), img)
+    hsv_image = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-        #TODO:resize if needed
-        frame = cv2.resize(frame, (self.camera_width, self.camera_height))
-        hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        lower_green = np.array([40, 40, 40])
-        upper_green = np.array([80, 255, 255])
+    # Define the color ranges for green, yellow, and white in HSV
+    lower_green = np.array([40, 40, 40])
+    upper_green = np.array([80, 255, 255])
 
-        #mask for the green color
-        green_mask = cv2.inRange(hsv_frame, lower_green, upper_green)
+    lower_yellow = np.array([20, 100, 100])
+    upper_yellow = np.array([30, 255, 255])
 
-        #AND operation to get the green regions
-        green_regions = cv2.bitwise_and(frame, frame, mask=green_mask)
+    lower_white = np.array([0, 0, 128])
+    upper_white = np.array([255, 50, 255])
 
-        gray_frame = cv2.cvtColor(green_regions, cv2.COLOR_BGR2GRAY)
+    # Create masks for each color
+    mask_green = cv2.inRange(hsv_image, lower_green, upper_green)
+    mask_yellow = cv2.inRange(hsv_image, lower_yellow, upper_yellow)
+    mask_white = cv2.inRange(hsv_image, lower_white, upper_white)
 
-        return gray_frame, frame, green_mask
+    # Set the corresponding color values for each mask
+    img[mask_green > 0] = [0, 255, 0]       # Green cubes
+    img[mask_yellow > 0] = [0, 0, 0]      # Yellow floor
+    img[mask_white > 0] = [255, 255, 255]   # White walls
 
-    def blob_detect(self, rob: IRobobo):
-        gray_frame, frame, green_mask = self.get_grey(rob)
+    cv2.imwrite(str("./frame.png"), img)
 
-        #perform blob detection
-        keypoints = self.detector.detect(gray_frame)
+    # Create a mask for the green color
+    mask_green = cv2.inRange(hsv_image, lower_green, upper_green)
 
-        cv2.imwrite(str("./frame.png"), frame)
-        cv2.imwrite(str("./gray_frame.png"), gray_frame)
-        if keypoints:
-            keypoint = keypoints[0]
-            x, y = int(keypoint.pt[0]), int(keypoint.pt[1])
-            size_percent = (keypoint.size / (frame.shape[0] * frame.shape[1])) * 100
+    # Find contours in the mask
+    contours, _ = cv2.findContours(mask_green, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-            # the number of white pixels in the blob
-            num_white_pixels = np.sum(green_mask[y:y+int(keypoint.size), x:x+int(keypoint.size)] == 255)
+    # Draw contours on the original image and calculate centroids
+    points = []
+    for contour in contours:
+        # Calculate the centroid of the contour
+        M = cv2.moments(contour)
+        if M["m00"] != 0:
+            cx = int(M["m10"] / M["m00"])
+            cy = int(M["m01"] / M["m00"])
+            # Draw the centroid on the image
+            # cv2.circle(img, (cx, cy), 5, (255, 0, 0), -1)  # Red circle
+            points.append([cx, cy])
 
-            # total number of pixels in the blob region
-            total_pixels_in_blob = int(keypoint.size) * int(keypoint.size)
+    return img, points   
 
-            # ratio of white pixels to total pixels
-            ratio_white_to_total = num_white_pixels / total_pixels_in_blob
-
-            # print(f"Blob detected at (x={x}, y={y}), "
-            #     f"Ratio of White Pixels to Total Pixels: {ratio_white_to_total}")
-        else:
-            x,y = 0,0
-            size_percent = 0
-        return [x, y, size_percent]
-        
 def move_robobo(movement, rob):
     movement = nn.functional.softmax(movement.detach(), dim=0)
     movement = movement.detach().numpy() #Use clone since detach doesnt properly work
     move_pr = np.argmax(movement)
+    # move_pr = np.random.choice([0,1,2,3], p=movement)
     if move_pr == 0: #Move forward
-        movement = [50, 50, 250]
+        rob.move_blocking(50, 50, 250)
     elif move_pr == 1: #Move backward
-        movement = [-50, -50, 250]
+        rob.move_blocking(-25, -60, 250)
     elif move_pr == 2: #Move left
-        movement = [-50, 50, 125]
+        rob.move_blocking(25, 50, 250)
     elif move_pr == 3: #Move right
-        movement = [50, -50, 125]
-    rob.move_blocking(int(movement[0]), int(movement[1]), int(movement[2]))
+        rob.move_blocking(50, 25, 250)
     return move_pr
 
-def evaluation(rob, model: nn.Module, scaler: joblib.load, seq: torch.Tensor, detector: Blob_Detection):
-    model.load_state_dict(torch.load('./model_best.ckpt'))
+def evaluation(rob, model: nn.Module):
+    model.load_state_dict(torch.load('./model_7.ckpt'))
     model.eval()
+    seq_length = 8
     with torch.no_grad():
         rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
+        seq = torch.zeros([1,seq_length,model.lstm_input_size])
         while True:
             # Get the input data
-            img_, _, _ = detector.get_grey(rob)
-            x = torch.tensor([img_], dtype=torch.float32)
-            p = model(x) #Do the forward pass
-            detector.blob_detect(rob)
+            img_, points = get_img(rob)
+            x = torch.tensor(np.expand_dims(img_.swapaxes(-1, 0).swapaxes(-1, 1), 0), dtype=torch.float32)
+            p, seq = model(x, seq) #Do the forward pass
+            p = p[0]
             move_robobo(p, rob)
 
-def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Optimizer, max_time: int, time_penalty: int, seq: torch.Tensor, detector: Blob_Detection) -> nn.Module:
+def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer) -> nn.Module:
     print('Started training')
     model.train()
     optimizer.zero_grad()
     loss_fn = nn.CrossEntropyLoss()
     all_loss, all_actions, all_food, all_target = [], [], [], []
+    seq_length = 8
     for round_ in range(8): #Reset the robobo and target 10 times with or without random pos
         rob.play_simulation()
         start = time.time()
         rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
         loss_am, actions, food, target_am = [], [], [], []
-        for _ in range(50): # Keep going unless 3 minutes is reached or all food is collected
-            img_, _, _ = detector.get_grey(rob)
-            rob_position = rob.position()
-            x = torch.tensor([img_], dtype=torch.float32)
-            p = model(x) #Do the forward pass
+        seq = torch.zeros([1,seq_length,model.lstm_input_size], requires_grad=True)
+        # Set a random position of the robobo every round
+        rob.set_position(Position(-2.25-(random.random()*1.75), (random.random()*1.6)-0.048, 0.075), Orientation(-90, -90, -90))
+        for step in range(100): # Keep going unless 3 minutes is reached or all food is collected
+            did_optim = False
+            img_, points = get_img(rob)
+            x = torch.tensor(np.expand_dims(img_.swapaxes(-1, 0).swapaxes(-1, 1), 0), dtype=torch.float32)
+            p, seq_new = model(x, seq) #Do the forward pass
             p = p[0]
-            # p = 
             move = move_robobo(p, rob)
-            new_position = rob.position()
-            x,y,amount_green = detector.blob_detect(rob)
-            if x != 0 and y != 0:
-                target = 0
-            elif eucl_loss_fn(torch.tensor([rob_position.x, rob_position.y], dtype=torch.float32), torch.tensor([new_position.x, new_position.y], dtype=torch.float32)) < 0.05:
-                if amount_green > 0:
-                    target = 0
-                else:
-                    target = 1
-            else:
-                if np.random.rand() > 0.5:
-                    target = 2
-                else:
-                    target = 3
+            target = -1
+            width, height, center = 640, 480, 100
+            if len(points) > 0:
+                points_right, points_left = 0, 0
+                for point in points:
+                    # if eucl_fn(point, [640//2, 480//2]) < center: #If near center ignore the rest and continue forward
+                    if point[0] >= (width//2-center//2) and point[0] <= (width//2+center//2): #If near center ignore the rest and continue forward
+                        target = 0
+                        break
+                    if point[0] <= (width//2-center//2): #If on the left
+                        points_left+=1
+                    else:
+                        points_right+=1
+                if target != 0:
+                    if points_left >= points_right: #If more points on the left move left.
+                        target = 2
+                    else:
+                        target = 3
+            else: #If not near, just go backward, most likely in the wall
+                target = 1
+
             target = torch.tensor(target, dtype=torch.long)
             loss = loss_fn(p, target)
 
             loss.backward() #Do the backward pass
-            optimizer.step() #Do a step in the learning space
-            optimizer.zero_grad() #Clear the gradients in the optimizer
+            if step % 16 == 0 and step != 0:
+                optimizer.step() #Do a step in the learning space
+                optimizer.zero_grad() #Clear the gradients in the optimizer
+                did_optim = True
+            seq = seq_new.detach()
+            if not did_optim:
+                optimizer.step() #Do a step in the learning space
+                optimizer.zero_grad() #Clear the gradients in the optimizer
+
             print(f'round: {round_}, loss: {loss.item()}, nr_food: {rob.nr_food_collected()}, target: {target.item()}, direction: {move}')
             loss_am.append(str(loss.item()))
             actions.append(str(move))
@@ -187,32 +196,54 @@ def train(rob, model: nn.Module, scaler: joblib.load, optimizer: torch.optim.Opt
 
 def run_lstm_classification(
         rob: IRobobo, 
-        max_time=1.5*60*1000, time_penalty=100, 
-        seq_len=128, features=13, hidden_size=128, num_outputs=4, num_layers=1,
-        eval_=True):
+        num_outputs=4, eval_=True):
     
     if isinstance(rob, SimulationRobobo):
         rob.play_simulation()
 
-    # with torch.autograd.detect_anomaly():
     print('connected')
-    # Setup things
-    scaler = joblib.load('software_powertrans_scaler.gz')
-
-    seq = torch.zeros((1, seq_len, features), dtype=torch.float32)
-    detector = Blob_Detection(640, 480)
-
+    if False:
+        while True:
+            rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
+            img, points = get_img(rob)
+            target = -1
+            width, height, center = 640, 480, 100
+            print(points)
+            if len(points) > 0:
+                points_right, points_left = 0, 0
+                for point in points:
+                    # if eucl_fn(point, [640//2, 480//2]) < center: #If near center ignore the rest and continue forward
+                    if point[0] >= (width//2-center//2) and point[0] <= (width//2+center//2): #If near center ignore the rest and continue forward
+                        target = 0
+                        rob.move_blocking(50,50,250)
+                        break
+                    if point[0] <= (width//2-center//2): #If on the left
+                        points_left+=1
+                    else:
+                        points_right+=1
+                if target != 0:
+                    if points_left >= points_right: #If more points on the left move left.
+                        rob.move_blocking(25,50,250)
+                    else:
+                        rob.move_blocking(50,25,250)
+            else: #If not near, just go backward, most likely in the wall
+                rnd = random.random()
+                if rnd < 0.5:
+                    rob.move_blocking(-25,-50,250)
+                else:
+                    rob.move_blocking(-50,-25,250)
     # Define the model and set it into train mode, together with the optimizer
-    model = CNN(num_outputs)
+    # with torch.autograd.detect_anomaly():
+    model = CNNwithLSTM(num_outputs)
 
     # Eval model in hw
     if not isinstance(rob, SimulationRobobo) or eval_:
-        evaluation(rob, model, scaler, seq, detector)
+        evaluation(rob, model)
         return
     
     # Define optimizer for training
     optimizer = optim.Adam(params=model.parameters(), lr=0.01)
-    model = train(rob, model, scaler, optimizer, max_time, time_penalty, seq, detector)
+    model = train(rob, model, optimizer)
 
     torch.save(model.state_dict(), './model.ckpt')
 

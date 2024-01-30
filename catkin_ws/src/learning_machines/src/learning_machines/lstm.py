@@ -16,7 +16,7 @@ class LSTM(nn.Module):
 class CNN(nn.Module):
     def __init__(self, num_classes=4):
         super().__init__()
-        self.conv1 = nn.Conv2d(1, 16, kernel_size=3, stride=1, padding=1)  # Change in_channels to 1
+        self.conv1 = nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1)  # Change in_channels to 1
         self.relu1 = nn.ReLU()
         self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
 
@@ -41,6 +41,51 @@ class CNN(nn.Module):
         x = self.relu4(self.fc1(x))
         x = self.fc2(x)
         return x
+
+class CNNwithLSTM(nn.Module):
+    def __init__(self, num_classes=4, lstm_hidden_size=256, lstm_num_layers=1):
+        super().__init__()
+        self.cnn = nn.Sequential(
+            # Reduce 1
+            nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1),
+            nn.LeakyReLU(0.1),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            # Reduce 2
+            nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1),
+            nn.LeakyReLU(0.1),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            # Reduce 3
+            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+            nn.LeakyReLU(0.1),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            # Reduce 4
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
+            nn.LeakyReLU(0.1),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+        )
+
+        self.lstm_input_size = 128 * (640//16) * (480//16)
+
+        self.lstm_hidden_size = lstm_hidden_size
+        self.lstm_num_layers = lstm_num_layers
+        self.lstm = nn.LSTM(self.lstm_input_size, lstm_hidden_size, lstm_num_layers, batch_first=True)
+
+        self.fc = nn.Linear(lstm_hidden_size, num_classes)
+
+        # Maybe we can use this fc layer to connect the CNN to the LSTM and reduce the dimensionality of the image.
+        # self.fc1 = nn.Linear(64 * (640//8) * (480//8), 128)
+        # self.relu4 = nn.ReLU()
+        # self.fc2 = nn.Linear(128, num_classes)
+
+    def forward(self, x: torch.Tensor(), seq: torch.Tensor()): #x is the new image, seq is the previous sequence it gave
+        # x, seq = x
+        x = self.cnn(x)
+        x = x.view(-1, self.lstm_input_size)  # Adjusted to the new input size
+        seq = torch.cat([seq[:,1:,:], x.unsqueeze(1)], dim=1)
+        x, _ = self.lstm(seq)
+        x = x[:, -1, :]
+        x = self.fc(x)
+        return x, seq
 
 class NN(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, num_layers: int):
