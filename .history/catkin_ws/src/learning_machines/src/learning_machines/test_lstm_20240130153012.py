@@ -90,9 +90,9 @@ def move_robobo(movement, rob):
         rob.move_blocking(50, 25, 250)
     return move_pr
 
-def get_xyz(position: Position):
-    return str({"x":position.x, "y":position.y, "z":position.z})
-
+def get_xyz(position -> Position):
+    return {"x":position.x, "y":position.y, "z":position.z}
+    
 def evaluation(rob, model: nn.Module):
     model.load_state_dict(torch.load('./model_7.ckpt'))
     model.eval()
@@ -109,13 +109,13 @@ def evaluation(rob, model: nn.Module):
         os.mkdir(directory)
     
     with open(f'{directory}eval_settings.txt', "w+") as file_:
-        file_.writelines([get_xyz(rob.position())])
+        file_.writelines([str(rob.position())])
 
     with torch.no_grad():
         rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
         seq = torch.zeros([1,seq_length,model.lstm_input_size])
         #while True:
-        for round_ in range(100):
+        for round_ in range(10):
             # Get the input data
             img_, points = get_img(rob)
             x = torch.tensor(np.expand_dims(img_.swapaxes(-1, 0).swapaxes(-1, 1), 0), dtype=torch.float32)
@@ -126,7 +126,7 @@ def evaluation(rob, model: nn.Module):
             
             
             foods_collected.append(str(rob.nr_food_collected()) + " ")
-            robot_locations.append(get_xyz(rob.position()) + " ")
+            robot_locations.append(get_XYZ(rob.position()) + " ")
             actions.append(str(action_taken) + " ")
             losses.append(str(loss.item()) + " ")
 

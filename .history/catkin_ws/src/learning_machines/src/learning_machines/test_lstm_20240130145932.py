@@ -90,9 +90,6 @@ def move_robobo(movement, rob):
         rob.move_blocking(50, 25, 250)
     return move_pr
 
-def get_xyz(position: Position):
-    return str({"x":position.x, "y":position.y, "z":position.z})
-
 def evaluation(rob, model: nn.Module):
     model.load_state_dict(torch.load('./model_7.ckpt'))
     model.eval()
@@ -107,15 +104,12 @@ def evaluation(rob, model: nn.Module):
     directory = "./eval_data/"
     if not os.path.exists(directory):
         os.mkdir(directory)
-    
-    with open(f'{directory}eval_settings.txt', "w+") as file_:
-        file_.writelines([get_xyz(rob.position())])
 
     with torch.no_grad():
         rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
         seq = torch.zeros([1,seq_length,model.lstm_input_size])
         #while True:
-        for round_ in range(100):
+        for round_ in range(3):
             # Get the input data
             img_, points = get_img(rob)
             x = torch.tensor(np.expand_dims(img_.swapaxes(-1, 0).swapaxes(-1, 1), 0), dtype=torch.float32)
@@ -124,28 +118,26 @@ def evaluation(rob, model: nn.Module):
             action_taken = move_robobo(p, rob)
             loss = calc_loss_eval(points, p)
             
-            
-            foods_collected.append(str(rob.nr_food_collected()) + " ")
-            robot_locations.append(get_xyz(rob.position()) + " ")
-            actions.append(str(action_taken) + " ")
-            losses.append(str(loss.item()) + " ")
+            foods_collected.append(str(rob.nr_food_collected()))
+            robot_locations.append(str(rob.position))
+            actions.append(str(action_taken))
+            losses.append(str(loss.item()))
 
-        #print(losses)
+        print(losses)
         with open(f'{directory}eval_loss.txt', "w+") as file_:
             file_.writelines(losses)
         
-        #print(foods_collected)
+        print(foods_collected)
         with open(f'{directory}eval_food.txt', "w+") as file_:
             file_.writelines(foods_collected)
         
-        #print(actions)
+        print(actions)
         with open(f'{directory}eval_actions.txt', "w+") as file_:
             file_.writelines(actions)
         
-        #print(robot_locations)
+        print(robot_locations)
         with open(f'{directory}eval_robot_locations.txt', "w+") as file_:
             file_.writelines(robot_locations)
-
 
 def calc_loss_eval(points, p):
     loss_fn = nn.CrossEntropyLoss()

@@ -115,7 +115,7 @@ def evaluation(rob, model: nn.Module):
         rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
         seq = torch.zeros([1,seq_length,model.lstm_input_size])
         #while True:
-        for round_ in range(100):
+        for round_ in range(10):
             # Get the input data
             img_, points = get_img(rob)
             x = torch.tensor(np.expand_dims(img_.swapaxes(-1, 0).swapaxes(-1, 1), 0), dtype=torch.float32)
