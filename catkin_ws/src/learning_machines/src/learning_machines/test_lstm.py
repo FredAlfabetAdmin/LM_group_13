@@ -19,7 +19,10 @@ import torch, time, random
 import numpy as np
 import joblib
 import cv2
+import os
+import json
 
+'''
 class Blob_Detection():
     def __init__(self, camera_width: int, camera_height: int, dark: bool = False) -> None:
         self.camera_width = camera_width
@@ -218,3 +221,107 @@ def run_lstm_classification(
 
     if isinstance(rob, SimulationRobobo):
         rob.stop_simulation()
+'''
+
+def run_lstm_classification(rob: IRobobo):
+    # Place the Robobo in a random position
+    # Place the food blob in a random position
+    # Take a screenshot from the camera
+    # Save the two positions into a file.
+    # Make sure to connect the ID's.
+    rob.play_simulation()
+    rob.set_phone_tilt_blocking(105, 100)
+    robot_position = rob.position()
+    food_position = rob.get_food_position()
+    print(food_position)
+    print(food_position.z)
+
+    directory = './training_data/'
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    
+    size_training_data = 3
+    for x in range(size_training_data):
+        # Randomize the positions of the robobo and the food.
+        x_range_min = -1.4
+        x_range_max = 1.5
+        y_range_min = -1.4
+        y_range_max = 1.5
+        print("ranges made")
+        x_random_position = random.randint(x_range_min*100, x_range_max*100)/ 100
+        y_random_position = random.randint(y_range_min*100, y_range_max*100)/ 100
+
+
+        # Set the position of the target
+        t_x = random.randint(x_range_min*100, x_range_max*100)/ 100
+        t_y = random.randint(y_range_min*100, y_range_max*100)/ 100
+        print(t_x)
+        print(t_y)
+        rob.set_target_position(Position(
+            t_x,
+            t_y,
+            food_position.z))
+        
+        # Set the position of the Robobo
+        rob.set_position(Position(
+            random.randint(x_range_min*100, x_range_max*100)/ 100,
+            random.randint(y_range_min*100, y_range_max*100)/ 100,
+            robot_position.z
+        ), rob.read_orientation())
+        
+        # Gather the information
+        view = rob.get_image_front()
+        wheel_position = rob.read_wheels()
+        robot_position = rob.position()
+        food_position = rob.get_food_position()
+        wheel_orientation = rob.read_orientation()
+        print(robot_position)
+        print(wheel_orientation)
+        print(wheel_position)
+        print(food_position)
+        
+        wheel_orientation = {"yaw":wheel_orientation.yaw, 
+                             "pitch":wheel_orientation.pitch, 
+                             "roll":wheel_orientation.roll}
+        wheel_position = {"position_r":wheel_position.wheel_pos_r,
+                          "position_l":wheel_position.wheel_pos_l,
+                          "speed_r": wheel_position.wheel_speed_r,
+                          "speed_l": wheel_position.wheel_speed_l}
+        food_position = {"x":food_position.x,
+                          "y":food_position.y,
+                          "z":food_position.z}
+        robot_position = {"x":robot_position.x,
+                          "y":robot_position.y,
+                          "z":robot_position.z}
+
+        scenario = {
+            "ID":str(x),
+            "wheel_position": wheel_position,
+            "wheel_orientation":wheel_orientation,
+            "food_position":food_position,
+            "robot_position":robot_position
+        }
+        print(scenario)
+        
+        # Write info
+        with open(f"{directory}/train_{x}.json", "w") as file:
+            json.dump(scenario, file, indent=2)
+        
+        # Save image
+        cv2.imwrite(str(f"{directory}/train_{x}.png"), view)
+        print("Fin")
+
+
+        
+
+
+
+    def set_target_position(self, position: Position) -> None:
+        """Set the position of the Robobo in the simulation"""
+        sim.simxSetObjectPosition(
+            self._connection_id,
+            self._target,
+            -1,
+            [position.x, position.y, position.z],
+            simConst.simx_opmode_blocking,
+        )

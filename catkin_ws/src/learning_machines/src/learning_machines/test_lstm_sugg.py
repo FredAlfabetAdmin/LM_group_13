@@ -19,7 +19,9 @@ import torch, time, random
 import numpy as np
 import joblib
 import cv2
-
+import os
+import json
+''' 
 class Blob_Detection():
     def __init__(self, camera_width: int, camera_height: int, dark: bool = False) -> None:
         self.camera_width = camera_width
@@ -177,34 +179,40 @@ def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer, detector: Blo
     with open(f'./res_action.txt', "w") as file_:
         file_.writelines(all_actions)
     return model
-
-def run_lstm_classification(
-        rob: IRobobo, 
-        max_time=1.5*60*1000, time_penalty=100, 
-        seq_len=128, features=13, hidden_size=128, num_outputs=4, num_layers=1,
-        eval_=False):
+'''
+def run_lstm_classification(rob: IRobobo):
+    # Place the Robobo in a random position
+    # Place the food blob in a random position
+    # Take a screenshot from the camera
+    # Save the two positions into a file.
+    # Make sure to connect the ID's.
+    directory = './training_data/'
+    if not os.path.exists(directory):
+        os.makedirs(directory)
     
-    if isinstance(rob, SimulationRobobo):
-        rob.play_simulation()
+    size_training_data = 3
+    for x in range(size_training_data):
+        # Randomize the positions of the robobo and the food.
 
-    # with torch.autograd.detect_anomaly():
-    print('connected')
-    # Setup things
-    detector = Blob_Detection(640, 480)
 
-    # Define the model and set it into train mode, together with the optimizer
-    model = CNN(num_outputs)
+        # Gather the information
+        wheel_position = rob.read_wheels()
+        view = rob.get_image_front()
+        food_position = rob.get_food_position()
+        wheel_orientation = rob.read_orientation()
 
-    # Eval model in hw
-    if not isinstance(rob, SimulationRobobo) or eval_:
-        evaluation(rob, model, detector)
-        return
     
-    # Define optimizer for training
-    optimizer = optim.Adam(params=model.parameters(), lr=0.001)
-    model = train(rob, model, optimizer, detector)
+        scenario = {
+            "ID":str(x),
+            "wheel_position": wheel_position,
+            "wheel_orientation":wheel_orientation,
+            "food_position":food_position
+        }
 
-    torch.save(model.state_dict(), './model.ckpt')
-
-    if isinstance(rob, SimulationRobobo):
-        rob.stop_simulation()
+        
+        # Write info
+        with open(f"{directory}/train_{x}.json", "w") as file:
+            json.dump(scenario, file, indent=2)
+        
+        # Save image
+        cv2.imwrite(str("{directory}/train_{x}.json.png"), view)
