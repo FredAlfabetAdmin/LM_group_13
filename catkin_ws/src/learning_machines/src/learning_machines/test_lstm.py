@@ -238,11 +238,11 @@ def run_lstm_classification(rob: IRobobo):
     if not os.path.exists(directory):
         os.makedirs(directory)
     
-    size_training_data = 1
+    size_training_data = 5
     for x in range(size_training_data):
         # Randomize the positions of the robobo and the food.
         x_range_min = -4
-        x_range_max = -2.1
+        x_range_max = -2
         y_range_min = 0
         y_range_max = 1.7
         x_random_position = random.randint(x_range_min*100, x_range_max*100)/ 100
@@ -254,13 +254,18 @@ def run_lstm_classification(rob: IRobobo):
             random.randint(y_range_min*100, y_range_max*100)/ 100,
             food_position.z
         ))
+        print(type(rob.read_orientation()))
 
         # Set the position of the Robobo
-        rob.set_position(Position(
-            random.randint(x_range_min*100, x_range_max*100)/ 100,
-            random.randint(y_range_min*100, y_range_max*100)/ 100,
-            robot_position.z
-        ), rob.read_orientation())
+        rob.set_position(
+            Position(
+                robot_position.x + 0.5,
+                robot_position.y,
+                0.050
+            #random.randint(x_range_min*100, x_range_max*100)/ 100,
+            #random.randint(y_range_min*100, y_range_max*100)/ 100,
+            #robot_position.z + 0.2
+        ),  Orientation(90, rob.read_orientation().pitch, 90))
         
         # Gather the information
         view = rob.get_image_front()
@@ -268,10 +273,6 @@ def run_lstm_classification(rob: IRobobo):
         robot_position = rob.position()
         food_position = rob.get_food_position()
         wheel_orientation = rob.read_orientation()
-        print(robot_position)
-        print(wheel_orientation)
-        print(wheel_position)
-        print(food_position)
 
         scenario = {
             "ID":str(x),

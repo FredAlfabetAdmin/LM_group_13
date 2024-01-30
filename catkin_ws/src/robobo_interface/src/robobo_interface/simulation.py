@@ -560,6 +560,9 @@ class SimulationRobobo(IRobobo):
 
     def set_target_position(self, position: Position) -> None:
         """Set the position of the Robobo in the simulation"""
+        print(self._connection_id)
+        print(self._target)
+        print(position)
         sim.simxSetObjectPosition(
             self._connection_id,
             self._target,
@@ -567,7 +570,6 @@ class SimulationRobobo(IRobobo):
             [position.x, position.y, position.z],
             simConst.simx_opmode_blocking,
         )
-    
 
     def api_plug(self, command: list):
         sim.simxCallScriptFunction(
