@@ -259,8 +259,8 @@ def run_lstm_classification(rob: IRobobo):
         # Set the position of the Robobo
         rob.set_position(
             Position(
-                robot_position.x + 0.5,
-                robot_position.y,
+                random.randint(x_range_min*100, x_range_max*100)/ 100,
+                random.randint(y_range_min*100, y_range_max*100)/ 100,
                 0.050
             #random.randint(x_range_min*100, x_range_max*100)/ 100,
             #random.randint(y_range_min*100, y_range_max*100)/ 100,
