@@ -539,6 +539,11 @@ class SimulationRobobo(IRobobo):
         This only works in the simulation.
         Trivially doesn't work when the simulation does not have a base.
         """
+        if self._base is None:
+            raise ValueError("Connected scene does not appear to have a base")
+        print(sim.simxReadProximitySensor(
+            self._connection_id, self._base, simConst.simx_opmode_buffer
+        ))
         detection, _, what, _ = sim.simxReadProximitySensor(
             self._connection_id, self._base, simConst.simx_opmode_buffer
         )
@@ -581,8 +586,27 @@ class SimulationRobobo(IRobobo):
             sim.simx_opmode_blocking
         )
 
+    def get_food_position(self):
+        """Get the position of the base to deliver food at.
+
+        This only works in the simulation.
+        Trivially doesn't work when the simulation does not have a base.
+        """
+        if self._food is None:
+            raise ValueError("Connected scene does not appear to have a food")
+
+        pos = sim.simxGetObjectPosition(
+            self._connection_id, self._food, -1, simConst.simx_opmode_blocking
+        )
+        return Position(*pos)
+
     def create_primitiveshape(self):
         self.api_plug(['sim.createPrimitiveShape(sim.primitiveshape_cuboid, {0.2, 0.2, 0.5}, 0)'])
+
+    def base_got_food(self):
+        food_position = self.get_food_position()
+        base_position = self.base_position()
+        return food_position.x > base_position.x-0.1 and food_position.x < base_position.x+0.1 and food_position.y > base_position.y-0.1 and food_position.y < base_position.y+0.1
 
     def _block_string(self, blockid: int) -> str:
         """Return some unique string based on the identifier and the blockid
@@ -615,3 +639,12 @@ class SimulationRobobo(IRobobo):
             )
         except CoppeliaSimApiError:
             self._target = None
+
+        try:
+            self._food = sim.simxGetObjectHandle(
+                self._connection_id,
+                "/Food",
+                simConst.simx_opmode_blocking,
+            )
+        except CoppeliaSimApiError:
+            self._food = None

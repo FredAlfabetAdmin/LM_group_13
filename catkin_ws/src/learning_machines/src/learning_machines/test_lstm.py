@@ -29,8 +29,8 @@ def get_img(rob: IRobobo, noise_thresh = 0):
 
     img = cv2.resize(img, (640, 480))
     # Convert the image to HSV color space (Hue, Saturation, Value)
-    # cv2.imwrite(str("./frame_org.png"), img)
     hsv_image = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    cv2.imwrite(str("./frame_org.png"), img)
 
     # Define the color ranges for green, yellow, and white in HSV
     lower_green = np.array([40, 40, 40])
@@ -42,15 +42,20 @@ def get_img(rob: IRobobo, noise_thresh = 0):
     lower_white = np.array([0, 0, 128])
     upper_white = np.array([255, 50, 255])
 
+    lower_red = np.array([0, 100, 100])
+    upper_red = np.array([10, 255, 255])
+
     # Create masks for each color
     mask_green = cv2.inRange(hsv_image, lower_green, upper_green)
     mask_yellow = cv2.inRange(hsv_image, lower_yellow, upper_yellow)
     mask_white = cv2.inRange(hsv_image, lower_white, upper_white)
+    mask_red = cv2.inRange(hsv_image, lower_red, upper_red)
 
     # Set the corresponding color values for each mask
     img[mask_green > 0] = [0, 255, 0]       # Green cubes
     img[mask_yellow > 0] = [0, 0, 0]      # Yellow floor
     img[mask_white > 0] = [255, 255, 255]   # White walls
+    img[mask_red > 0] = [0, 0, 255]        # Red items
     
     img = img + (np.random.randn(img.shape[0], img.shape[1], img.shape[2]) * noise_thresh)
 
@@ -60,21 +65,33 @@ def get_img(rob: IRobobo, noise_thresh = 0):
     mask_green = cv2.inRange(hsv_image, lower_green, upper_green)
 
     # Find contours in the mask
-    contours, _ = cv2.findContours(mask_green, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours_green, _ = cv2.findContours(mask_green, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    # Draw contours on the original image and calculate centroids
-    points = []
-    for contour in contours:
-        # Calculate the centroid of the contour
+    # Draw contours on the original image and calculate centroids for green items
+    points_green = []
+    for contour in contours_green:
         M = cv2.moments(contour)
         if M["m00"] != 0:
             cx = int(M["m10"] / M["m00"])
             cy = int(M["m01"] / M["m00"])
-            # Draw the centroid on the image
-            # cv2.circle(img, (cx, cy), 5, (255, 0, 0), -1)  # Red circle
-            points.append([cx, cy])
+            points_green.append([cx, cy])
 
-    return img, points   
+    # Create a mask for the red color
+    mask_red = cv2.inRange(hsv_image, lower_red, upper_red)
+
+    # Find contours in the mask
+    contours_red, _ = cv2.findContours(mask_red, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Draw contours on the original image and calculate centroids for red items
+    points_red = []
+    for contour in contours_red:
+        M = cv2.moments(contour)
+        if M["m00"] != 0:
+            cx = int(M["m10"] / M["m00"])
+            cy = int(M["m01"] / M["m00"])
+            points_red.append([cx, cy])
+
+    return img, points_green, points_red 
 
 def move_robobo(movement, rob):
     movement = nn.functional.softmax(movement.detach(), dim=0)
@@ -100,11 +117,40 @@ def evaluation(rob, model: nn.Module):
         seq = torch.zeros([1,seq_length,model.lstm_features])
         while True:
             # Get the input data
-            img_, points = get_img(rob)
+            img_, points_green, points_red = get_img(rob)
             x = torch.tensor(np.expand_dims(img_.swapaxes(-1, 0).swapaxes(-1, 1), 0), dtype=torch.float32)
             p, seq = model(x, seq) #Do the forward pass
             p = p[0]
             move_robobo(p, rob)
+
+def get_target(points_red, points_green):
+    target = -1
+    width, height, center = 640, 480, 150
+    red_box_in_place = False
+    if len(points_red) > 0:
+        for point in points_red: #Check if there is just a red box in front, otherwise ignore
+            if point[0] > 640//2 - 30 and point[0] < 640//2 + 30 and \
+                point[1] > 415:
+                red_box_in_place = True
+    if red_box_in_place and len(points_green) > 0:
+        centroid, points_left, points_right = point_and_move(points_green, width, height, center)
+        if centroid:
+            target = 0
+        elif points_left >= points_right:
+            target = 2
+        else:
+            target = 3
+    elif len(points_red) > 0 and not red_box_in_place:
+        centroid, points_left, points_right = point_and_move(points_red, width, height, center)
+        if centroid:
+            target = 0
+        elif points_left >= points_right:
+            target = 2
+        else:
+            target = 3
+    else:
+        target = 1
+    return target
 
 def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer) -> nn.Module:
     print('Started training')
@@ -118,38 +164,19 @@ def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer) -> nn.Module:
     for round_ in range(50): #Reset the robobo and target 10 times with or without random pos
         rob.play_simulation()
         start = time.time()
-        rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
+        rob.set_phone_tilt_blocking(97, 100) #Angle phone forward
         loss_am, actions, food, target_am = [], [], [], []
         seq = torch.zeros([1,seq_length,model.lstm_features], requires_grad=True)
         # Set a random position of the robobo every round
-        rob.set_position(Position(-2.25-(random.random()*1.75), (random.random()*1.6)-0.048, 0.075), Orientation(-90, -90, -90))
+        # rob.set_position(Position(-2.25-(random.random()*1.75), (random.random()*1.6)-0.048, 0.075), Orientation(-90, -90, -90))
         for step in range(100): # Keep going unless 3 minutes is reached or all food is collected
             did_optim = False
-            img_, points = get_img(rob, noise_thresh=0.2)
+            img_, points_green, points_red = get_img(rob, noise_thresh=0.2)
             x = torch.tensor(np.expand_dims(img_.swapaxes(-1, 0).swapaxes(-1, 1), 0), dtype=torch.float32)
             p, seq_new = model(x, seq) #Do the forward pass
             p = p[0]
             move = move_robobo(p, rob)
-            target = -1
-            width, height, center = 640, 480, 150
-            if len(points) > 0:
-                points_right, points_left = 0, 0
-                for point in points:
-                    # if eucl_fn(point, [640//2, 480//2]) < center: #If near center ignore the rest and continue forward
-                    if point[0] >= (width//2-center//2) and point[0] <= (width//2+center//2): #If near center ignore the rest and continue forward
-                        target = 0
-                        break
-                    if point[0] <= (width//2-center//2): #If on the left
-                        points_left+=1
-                    else:
-                        points_right+=1
-                if target != 0:
-                    if points_left >= points_right: #If more points on the left move left.
-                        target = 2
-                    else:
-                        target = 3
-            else: #If not near, just go backward, most likely in the wall
-                target = 1
+            target = get_target(points_green, points_red)
 
             target = torch.tensor(target, dtype=torch.long)
             loss = loss_fn(p, target)
@@ -167,8 +194,8 @@ def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer) -> nn.Module:
             actions.append(str(move))
             food.append(str(rob.nr_food_collected()))
             target_am.append(str(target.item()))
-            if rob.nr_food_collected() >= 7 or time.time() - start > 3*60*1000:
-                print(f'object_completed within time: {time.time() - start}, collected: {rob.nr_food_collected()}')
+            if rob.base_got_food():
+                print(f'object_completed within time: {time.time() - start}')
                 break
         if not did_optim:
             optimizer.step() #Do a step in the learning space
@@ -200,44 +227,64 @@ def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer) -> nn.Module:
         file_.writelines(all_actions)
     return model
 
+def point_and_move(points, width, height, center):
+    points_right, points_left = 0, 0
+    for point in points:
+        # if eucl_fn(point, [640//2, 480//2]) < center: #If near center ignore the rest and continue forward
+        if point[0] >= (width//2-center//2) and point[0] <= (width//2+center//2): #If near center ignore the rest and continue forward
+            target = 0
+            return True, None, None
+        if point[0] <= (width//2-center//2): #If on the left
+            points_left+=1
+        else:
+            points_right+=1
+    return False, points_left, points_right
+
 def run_lstm_classification(
         rob: IRobobo, 
-        num_outputs=4, eval_=True):
+        num_outputs=4, eval_=False):
     
     if isinstance(rob, SimulationRobobo):
         rob.play_simulation()
 
     print('connected')
-    if True:
+    if False:
         while True:
-            rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
-            img, points = get_img(rob)
+            rob.set_phone_tilt_blocking(97, 100) #Angle phone forward
+            img, points_green, points_red = get_img(rob)
             target = -1
             width, height, center = 640, 480, 150
-            print(points)
-            if len(points) > 0:
-                points_right, points_left = 0, 0
-                for point in points:
-                    # if eucl_fn(point, [640//2, 480//2]) < center: #If near center ignore the rest and continue forward
-                    if point[0] >= (width//2-center//2) and point[0] <= (width//2+center//2): #If near center ignore the rest and continue forward
-                        target = 0
-                        rob.move_blocking(50,50,500)
-                        print("Going forward")
-                        break
-                    if point[0] <= (width//2-center//2): #If on the left
-                        print("Going to the left")
-                        points_left+=1
-                    else:
-                        print("Going to right")
-                        points_right+=1
-                if target != 0:
-                    if points_left >= points_right: #If more points on the left move left.
-                        rob.move_blocking(25,50,250)
-                    else:
-                        rob.move_blocking(50,25,250)
-            else: #If not near, turn left to scan the room
-                rnd = random.random()
-                rob.move_blocking(-50,50,250)
+            red_box_in_place = False
+            if len(points_red) > 0:
+                for point in points_red: #Check if there is just a red box in front, otherwise ignore
+                    if point[0] > 640//2 - 30 and point[0] < 640//2 + 30 and \
+                        point[1] > 415:
+                        red_box_in_place = True
+            if red_box_in_place and len(points_green) > 0:
+                centroid, points_left, points_right = point_and_move(points_green, width, height, center)
+                if centroid:
+                    target = 0
+                    rob.move_blocking(50,50,500)
+                elif points_left >= points_right:
+                    target = 2
+                    rob.move_blocking(25,50,250)
+                else:
+                    target = 3
+                    rob.move_blocking(50,25,250)
+            elif len(points_red) > 0 and not red_box_in_place:
+                centroid, points_left, points_right = point_and_move(points_red, width, height, center)
+                if centroid:
+                    target = 0
+                    rob.move_blocking(50,50,500)
+                elif points_left >= points_right:
+                    target = 2
+                    rob.move_blocking(25,50,250)
+                else:
+                    target = 3
+                    rob.move_blocking(50,25,250)
+            else:
+                target = 1
+                rob.move_blocking(-25, -60, 250)
         return
     # Define the model and set it into train mode, together with the optimizer
     # with torch.autograd.detect_anomaly():
