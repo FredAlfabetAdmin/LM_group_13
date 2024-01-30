@@ -24,7 +24,7 @@ import math
 def eucl_fn(point1, point2):
     return math.sqrt((point1[0]-point2[0])**2 + (point1[1]-point2[1])**2)
 
-def get_img(rob: IRobobo):
+def get_img(rob: IRobobo, noise_thresh = 0):
     img = rob.get_image_front()
 
     img = cv2.resize(img, (640, 480))
@@ -51,6 +51,8 @@ def get_img(rob: IRobobo):
     img[mask_green > 0] = [0, 255, 0]       # Green cubes
     img[mask_yellow > 0] = [0, 0, 0]      # Yellow floor
     img[mask_white > 0] = [255, 255, 255]   # White walls
+    
+    img = img + (np.random.randn(img.shape[0], img.shape[1], img.shape[2]) * noise_thresh)
 
     cv2.imwrite(str("./frame.png"), img)
 
@@ -77,8 +79,8 @@ def get_img(rob: IRobobo):
 def move_robobo(movement, rob):
     movement = nn.functional.softmax(movement.detach(), dim=0)
     movement = movement.detach().numpy() #Use clone since detach doesnt properly work
-    move_pr = np.argmax(movement)
-    # move_pr = np.random.choice([0,1,2,3], p=movement)
+    # move_pr = np.argmax(movement)
+    move_pr = np.random.choice([0,1,2,3], p=movement)
     if move_pr == 0: #Move forward
         rob.move_blocking(50, 50, 250)
     elif move_pr == 1: #Move backward
@@ -90,12 +92,12 @@ def move_robobo(movement, rob):
     return move_pr
 
 def evaluation(rob, model: nn.Module):
-    model.load_state_dict(torch.load('./model_7.ckpt'))
+    model.load_state_dict(torch.load('./model_33.ckpt'))
     model.eval()
     seq_length = 8
     with torch.no_grad():
         rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
-        seq = torch.zeros([1,seq_length,model.lstm_input_size])
+        seq = torch.zeros([1,seq_length,model.lstm_features])
         while True:
             # Get the input data
             img_, points = get_img(rob)
@@ -110,24 +112,26 @@ def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer) -> nn.Module:
     optimizer.zero_grad()
     loss_fn = nn.CrossEntropyLoss()
     all_loss, all_actions, all_food, all_target = [], [], [], []
-    seq_length = 8
-    for round_ in range(8): #Reset the robobo and target 10 times with or without random pos
+    seq_length = 16
+    # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda i: min(i / 500, 1.0))
+    # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda i: max(-math.sqrt(i*(1/200))+2, 1.0))
+    for round_ in range(50): #Reset the robobo and target 10 times with or without random pos
         rob.play_simulation()
         start = time.time()
         rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
         loss_am, actions, food, target_am = [], [], [], []
-        seq = torch.zeros([1,seq_length,model.lstm_input_size], requires_grad=True)
+        seq = torch.zeros([1,seq_length,model.lstm_features], requires_grad=True)
         # Set a random position of the robobo every round
         rob.set_position(Position(-2.25-(random.random()*1.75), (random.random()*1.6)-0.048, 0.075), Orientation(-90, -90, -90))
         for step in range(100): # Keep going unless 3 minutes is reached or all food is collected
             did_optim = False
-            img_, points = get_img(rob)
+            img_, points = get_img(rob, noise_thresh=0.2)
             x = torch.tensor(np.expand_dims(img_.swapaxes(-1, 0).swapaxes(-1, 1), 0), dtype=torch.float32)
             p, seq_new = model(x, seq) #Do the forward pass
             p = p[0]
             move = move_robobo(p, rob)
             target = -1
-            width, height, center = 640, 480, 100
+            width, height, center = 640, 480, 150
             if len(points) > 0:
                 points_right, points_left = 0, 0
                 for point in points:
@@ -151,16 +155,14 @@ def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer) -> nn.Module:
             loss = loss_fn(p, target)
 
             loss.backward() #Do the backward pass
-            if step % 16 == 0 and step != 0:
+            if step % 4 == 0 and step != 0:
                 optimizer.step() #Do a step in the learning space
                 optimizer.zero_grad() #Clear the gradients in the optimizer
+                # scheduler.step() #Increase the learning rate
                 did_optim = True
             seq = seq_new.detach()
-            if not did_optim:
-                optimizer.step() #Do a step in the learning space
-                optimizer.zero_grad() #Clear the gradients in the optimizer
 
-            print(f'round: {round_}, loss: {loss.item()}, nr_food: {rob.nr_food_collected()}, target: {target.item()}, direction: {move}')
+            print(f'round: {round_}, loss: {loss.item()}, nr_food: {rob.nr_food_collected()}, target: {target.item()}, direction: {move}, learning_rate: {optimizer.param_groups[0]["lr"]}')
             loss_am.append(str(loss.item()))
             actions.append(str(move))
             food.append(str(rob.nr_food_collected()))
@@ -168,6 +170,10 @@ def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer) -> nn.Module:
             if rob.nr_food_collected() >= 7 or time.time() - start > 3*60*1000:
                 print(f'object_completed within time: {time.time() - start}, collected: {rob.nr_food_collected()}')
                 break
+        if not did_optim:
+            optimizer.step() #Do a step in the learning space
+            optimizer.zero_grad() #Clear the gradients in the optimizer
+            # scheduler.step() #Increase the learning rate
         all_loss.append(' '.join(loss_am))
         all_actions.append(' '.join(actions))
         all_food.append(' '.join(food))
@@ -242,7 +248,7 @@ def run_lstm_classification(
         return
     
     # Define optimizer for training
-    optimizer = optim.Adam(params=model.parameters(), lr=0.01)
+    optimizer = optim.Adam(params=model.parameters(), lr=0.005)
     model = train(rob, model, optimizer)
 
     torch.save(model.state_dict(), './model.ckpt')

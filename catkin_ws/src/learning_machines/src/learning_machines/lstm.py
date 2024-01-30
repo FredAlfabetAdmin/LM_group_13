@@ -5,7 +5,7 @@ from torch import nn
 class LSTM(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, num_layers: int):
         super().__init__()
-        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers=num_layers, batch_first=True)
+        self.lstm = nn.RNN(input_dim, hidden_dim, num_layers=num_layers, batch_first=True)
         self.fc = nn.Linear(hidden_dim, output_dim)
     
     def forward(self, x):
@@ -64,11 +64,17 @@ class CNNwithLSTM(nn.Module):
             nn.MaxPool2d(kernel_size=2, stride=2),
         )
 
-        self.lstm_input_size = 128 * (640//16) * (480//16)
+        self.cnn_output = 128 * (640//16) * (480//16)
+        self.lstm_features = 512
 
+        # Connection layer
+        self.connection = nn.Linear(self.cnn_output, self.lstm_features)
+        self.activation = nn.ReLU()
+
+        # LSTM
         self.lstm_hidden_size = lstm_hidden_size
         self.lstm_num_layers = lstm_num_layers
-        self.lstm = nn.LSTM(self.lstm_input_size, lstm_hidden_size, lstm_num_layers, batch_first=True)
+        self.lstm = nn.LSTM(self.lstm_features, lstm_hidden_size, lstm_num_layers, batch_first=True)
 
         self.fc = nn.Linear(lstm_hidden_size, num_classes)
 
@@ -80,7 +86,9 @@ class CNNwithLSTM(nn.Module):
     def forward(self, x: torch.Tensor(), seq: torch.Tensor()): #x is the new image, seq is the previous sequence it gave
         # x, seq = x
         x = self.cnn(x)
-        x = x.view(-1, self.lstm_input_size)  # Adjusted to the new input size
+        x = x.view(-1, self.cnn_output)  # Adjusted to the new input size
+        x = self.connection(x)
+        x = self.activation(x)
         seq = torch.cat([seq[:,1:,:], x.unsqueeze(1)], dim=1)
         x, _ = self.lstm(seq)
         x = x[:, -1, :]
