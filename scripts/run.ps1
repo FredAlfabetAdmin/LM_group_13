@@ -16,7 +16,7 @@ param([string]$mode)
 
 if ($mode -eq "--simulation") {
     Write-Host "Running in simulation mode. Starting coppeliaSim..."
-	Start-Process powershell -ArgumentList " -NoExit -Command & { .\scripts\start_coppelia_sim.ps1 .\scenes\Robobo_Scene.ttt }" #-WindowStyle Hidden
+	Start-Process powershell -ArgumentList " -NoExit -Command & { .\scripts\start_coppelia_sim.ps1 .\scenes\arena_approach.ttt }" #-WindowStyle Hidden
 	}
 elseif ($mode -ne "--hardware") {
     Write-Host "Invalid mode or no mode specified: $mode. Either --simulation or --hardware"
@@ -24,7 +24,7 @@ elseif ($mode -ne "--hardware") {
 }
 
 # Get IP address
-$ipAddress = (Get-NetIPAddress | Where-Object { $_.AddressState -eq "Preferred" -and $_.ValidLifetime -lt "24:00:00" }).IPAddress
+$ipAddress = (Get-NetIPAddress | Where-Object { $_.AddressState -eq "Preferred" -and $_.ValidLifetime -lt "24:00:00"  -and $_.AddressFamily -eq "IPv4"}).IPAddress
 
 # Build Docker image
 #docker build --tag lm --build-arg IP_ADRESS=$ipAddress .

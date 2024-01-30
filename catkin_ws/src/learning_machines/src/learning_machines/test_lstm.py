@@ -208,12 +208,12 @@ def run_lstm_classification(
         rob.play_simulation()
 
     print('connected')
-    if False:
+    if True:
         while True:
             rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
             img, points = get_img(rob)
             target = -1
-            width, height, center = 640, 480, 100
+            width, height, center = 640, 480, 150
             print(points)
             if len(points) > 0:
                 points_right, points_left = 0, 0
@@ -221,23 +221,24 @@ def run_lstm_classification(
                     # if eucl_fn(point, [640//2, 480//2]) < center: #If near center ignore the rest and continue forward
                     if point[0] >= (width//2-center//2) and point[0] <= (width//2+center//2): #If near center ignore the rest and continue forward
                         target = 0
-                        rob.move_blocking(50,50,250)
+                        rob.move_blocking(50,50,500)
+                        print("Going forward")
                         break
                     if point[0] <= (width//2-center//2): #If on the left
+                        print("Going to the left")
                         points_left+=1
                     else:
+                        print("Going to right")
                         points_right+=1
                 if target != 0:
                     if points_left >= points_right: #If more points on the left move left.
                         rob.move_blocking(25,50,250)
                     else:
                         rob.move_blocking(50,25,250)
-            else: #If not near, just go backward, most likely in the wall
+            else: #If not near, turn left to scan the room
                 rnd = random.random()
-                if rnd < 0.5:
-                    rob.move_blocking(-25,-50,250)
-                else:
-                    rob.move_blocking(-50,-25,250)
+                rob.move_blocking(-50,50,250)
+        return
     # Define the model and set it into train mode, together with the optimizer
     # with torch.autograd.detect_anomaly():
     model = CNNwithLSTM(num_outputs)
