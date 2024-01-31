@@ -29,28 +29,50 @@ def get_img(rob: IRobobo, noise_thresh = 0):
 
     img = cv2.resize(img, (640, 480))
     # Convert the image to HSV color space (Hue, Saturation, Value)
-    # cv2.imwrite(str("./frame_org.png"), img)
+    cv2.imwrite(str("./frame_org.png"), img)
     hsv_image = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    if isinstance(rob, SimulationRobobo):
+        # Define the color ranges for green, yellow, and white in HSV
+        lower_green = np.array([40, 40, 40])
+        upper_green = np.array([80, 255, 255])
 
-    # Define the color ranges for green, yellow, and white in HSV
-    lower_green = np.array([40, 40, 40])
-    upper_green = np.array([80, 255, 255])
+        lower_yellow = np.array([20, 100, 100])
+        upper_yellow = np.array([30, 255, 255])
 
-    lower_yellow = np.array([20, 100, 100])
-    upper_yellow = np.array([30, 255, 255])
+        lower_white = np.array([0, 0, 128])
+        upper_white = np.array([255, 50, 255])
 
-    lower_white = np.array([0, 0, 128])
-    upper_white = np.array([255, 50, 255])
+        # Create masks for each color
+        mask_green = cv2.inRange(hsv_image, lower_green, upper_green)
+        mask_yellow = cv2.inRange(hsv_image, lower_yellow, upper_yellow)
+        mask_white = cv2.inRange(hsv_image, lower_white, upper_white)
 
-    # Create masks for each color
-    mask_green = cv2.inRange(hsv_image, lower_green, upper_green)
-    mask_yellow = cv2.inRange(hsv_image, lower_yellow, upper_yellow)
-    mask_white = cv2.inRange(hsv_image, lower_white, upper_white)
+        # Set the corresponding color values for each mask
+        img[mask_green > 0] = [0, 255, 0]       # Green cubes
+        img[mask_yellow > 0] = [0, 0, 0]      # Yellow floor
+        img[mask_white > 0] = [255, 255, 255]   # White walls
+    else:
+        # Define the color ranges for green, yellow, and white in HSV
+        lower_green = np.array([30, 40, 40])
+        upper_green = np.array([90, 255, 255])
 
-    # Set the corresponding color values for each mask
-    img[mask_green > 0] = [0, 255, 0]       # Green cubes
-    img[mask_yellow > 0] = [0, 0, 0]      # Yellow floor
-    img[mask_white > 0] = [255, 255, 255]   # White walls
+        lower_yellow = np.array([15, 100, 100])
+        upper_yellow = np.array([30, 255, 255])
+
+        # lower_white = np.array([0, 0, 128])
+        # upper_white = np.array([255, 30, 255])
+        lower_blue = np.array([133, 145, 149])
+        upper_blue = np.array([156, 165, 168])
+        # Create masks for each color
+        mask_green = cv2.inRange(hsv_image, lower_green, upper_green)
+        mask_yellow = cv2.inRange(hsv_image, lower_yellow, upper_yellow)
+        mask_blue = cv2.inRange(hsv_image, lower_blue, upper_blue)
+        #mask_white = cv2.inRange(hsv_image, lower_white, upper_white)
+
+        # Set the corresponding color values for each mask
+        img[mask_green > 0] = [0, 255, 0]       # Green cubes
+        img[mask_yellow > 0] = [0, 0, 0]      # Yellow floor
+        img[mask_blue > 0] = [0,0,0]
     
     img = img + (np.random.randn(img.shape[0], img.shape[1], img.shape[2]) * noise_thresh)
 
@@ -105,6 +127,7 @@ def evaluation(rob, model: nn.Module):
             p, seq = model(x, seq) #Do the forward pass
             p = p[0]
             move_robobo(p, rob)
+
 
 def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer) -> nn.Module:
     print('Started training')
