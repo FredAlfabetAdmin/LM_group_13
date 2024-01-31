@@ -159,6 +159,24 @@ def collide_check(robot_pos, food_pos):
     # Replace this with your actual collision detection logic
     return robot_pos == food_pos
 
+def setup_rand(rob):
+    # Set a random position of the robobo every round
+    # rob.set_position(Position(-2.25-(random.random()*1.675), (random.random()*1.622)-0.048, 0.03971), Orientation(-90, -90, -90))
+    # rob.set_food_position(Position(-3.925-(random.random()*1.675), (random.random()*1.622)-1.677, 0.03971))
+    # rob top left: -2.25 , -0,048 , + 0.03971
+    # rob bot right: -3.925 , 1.677 , + 0.03971      
+    # food top left: -2.125 , -0.2 , +0.0111
+    # food bot right: -4.125 , +1.8 ,  +0.0111
+    # base: 1x1 and pos: -3.2 , +1,75 , +0.002 let food not spawn here
+    # Constant for the allowed spawn point
+    while True:
+        rob.set_position(Position(-2.25-(random.random()*1.675), -0.048+(random.random()*1.725), 0.03971), Orientation(-90, -90, -90))
+        rob.set_food_position(Position(-2.125-(random.random()*2), -0.2+(random.random()*2), 0.03971))
+        
+        # Check if the positions collide or are at the allowed spawn point
+        if not collide_check(rob.position(), rob.get_food_position()) and (rob.position() != rob.base_position()) and (rob.get_food_position() != rob.base_position()):
+            break
+
 def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer, max_steps=100, max_rounds=50) -> nn.Module:
     print('Started training')
     model.train()
@@ -174,27 +192,20 @@ def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer, max_steps=100
         rob.set_phone_tilt_blocking(97, 100) #Angle phone forward
         loss_am, actions, food, target_am = [], [], [], []
         seq = torch.zeros([1,seq_length,model.lstm_features], requires_grad=True)
-        # Set a random position of the robobo every round
-        # rob.set_position(Position(-2.25-(random.random()*1.675), (random.random()*1.622)-0.048, 0.03971), Orientation(-90, -90, -90))
-        # rob.set_food_position(Position(-3.925-(random.random()*1.675), (random.random()*1.622)-1.677, 0.03971))
-        # rob top left: -2.25 , -0,048 , + 0.03971
-        # rob bot right: -3.925 , -1.677 , + 0.03971      
-        # food top left: -2.125 , -0.2 , +0.0111
-        # food bot right: -4.125 , +1.8 ,  +0.0111
-        # base: 1x1 and pos: -3.2 , +1,75 , +0.002 let food not spawn here
-        # Constant for the allowed spawn point
-        while True:
-            rob.set_position(Position(-2.25-(random.random()*1.675), (random.random()*1.622)-0.048, 0.03971), Orientation(-90, -90, -90))
-            rob.set_food_position(Position(-3.925-(random.random()*1.675), (random.random()*1.622)-1.677, 0.03971))
-            
-            # Check if the positions collide or are at the allowed spawn point
-            if not collide_check(rob.position(), rob.get_food_position()) and (rob.position() != rob.base_position()) and (rob.get_food_position() != rob.base_position()):
-                break
+        early_resetting = False
+        random_pos = False
+        extra_steps = 0
+        if round_ < 5:
+            early_resetting = True
+        elif round_ < 15 and round_ >= 5:
+            setup_rand(rob)
+            random_pos = True
+            extra_steps = 100
 
         # rob.set_position(Position(-2.25-(random.random()*1.75), (random.random()*1.6)-0.048, 0.075), Orientation(-90, -90, -90))
         max_resets_overfitting_red = 100
         max_resets = 0
-        for step in range(max_steps): # Keep going unless 3 minutes is reached or all food is collected
+        for step in range(max_steps + extra_steps): # Keep going unless 3 minutes is reached or all food is collected
             did_optim = False
             img_, points_green, points_red = get_img(rob)
             x = torch.tensor(np.expand_dims(img_.swapaxes(-1, 0).swapaxes(-1, 1), 0), dtype=torch.float32)
@@ -214,12 +225,16 @@ def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer, max_steps=100
                 did_optim = True
             seq = seq_new.detach()
 
+            # if rob.nr_food_collected() > 0 and random_pos:
+            #     print(f'Found red block in time: {time.time() - start}')
+            #     break
+
             print(f'round: {round_}, loss: {loss.item()}, nr_food: {rob.nr_food_collected()}, target: {target.item()}, direction: {move}, learning_rate: {optimizer.param_groups[0]["lr"]}, redbox in place: {red_box_in_place}')
             loss_am.append(str(loss.item()))
             actions.append(str(move))
             food.append(str(rob.nr_food_collected()))
             target_am.append(str(target.item()))
-            if max_resets <= max_resets_overfitting_red and len(points_red) == 0:
+            if max_resets <= max_resets_overfitting_red and len(points_red) == 0 and early_resetting and not random_pos:
                 print('early resetting scene, too much wrong move')
                 rob.stop_simulation()
                 time.sleep(0.25)
@@ -227,7 +242,7 @@ def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer, max_steps=100
                 rob.set_phone_tilt_blocking(97, 100) #Angle phone forward
                 seq = torch.zeros([1,seq_length,model.lstm_features], requires_grad=True)
                 max_resets+=1
-            if rob.base_got_food():
+            if rob.base_got_food() and not early_resetting and not random_pos:
                 print(f'object_completed within time: {time.time() - start}')
                 break
         if not did_optim:
