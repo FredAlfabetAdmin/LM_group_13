@@ -155,10 +155,6 @@ def get_target(points_green, points_red):
         target = 1
     return target, red_box_in_place
 
-def collide_check(robot_pos, food_pos):
-    # Replace this with your actual collision detection logic
-    return robot_pos == food_pos
-
 def setup_rand(rob):
     # Set a random position of the robobo every round
     # rob.set_position(Position(-2.25-(random.random()*1.675), (random.random()*1.622)-0.048, 0.03971), Orientation(-90, -90, -90))
@@ -174,10 +170,18 @@ def setup_rand(rob):
         rob.set_food_position(Position(-2.125-(random.random()*2), -0.2+(random.random()*2), 0.03971))
         
         # Check if the positions collide or are at the allowed spawn point
-        if not collide_check(rob.position(), rob.get_food_position()) and (rob.position() != rob.base_position()) and (rob.get_food_position() != rob.base_position()):
+        robot_pos = rob.position()
+        food_pos = rob.get_food_position()
+        base_pos = rob.base_position()
+        if not (food_pos.x > robot_pos.x - 0.1 and food_pos.x < robot_pos.x + 0.1 and \
+                food_pos.y > robot_pos.y - 0.1 and food_pos.y < robot_pos.y + 0.1)  \
+            and (robot_pos.x > base_pos.x - 0.1 and robot_pos.x < base_pos.x + 0.1 and \
+                robot_pos.y > base_pos.y - 0.1 and robot_pos.y < base_pos.y + 0.1) \
+            and (food_pos.x > base_pos.x - 0.1 and food_pos.x < base_pos.x + 0.1 and \
+                food_pos.y > base_pos.y - 0.1 and food_pos.y < base_pos.y + 0.1):
             break
 
-def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer, max_steps=100, max_rounds=50) -> nn.Module:
+def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer, max_steps=100, max_rounds=50, round_offset=0) -> nn.Module:
     print('Started training')
     model.train()
     optimizer.zero_grad()
@@ -187,6 +191,7 @@ def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer, max_steps=100
     # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda i: min(i / 500, 1.0))
     # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda i: max(-math.sqrt(i*(1/200))+2, 1.0))
     for round_ in range(max_rounds): #Reset the robobo and target 10 times with or without random pos
+        round_ += round_offset
         rob.play_simulation()
         start = time.time()
         rob.set_phone_tilt_blocking(97, 100) #Angle phone forward
