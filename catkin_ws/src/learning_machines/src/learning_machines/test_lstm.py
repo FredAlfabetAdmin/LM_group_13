@@ -123,7 +123,7 @@ def evaluation(rob, model: nn.Module):
             p = p[0]
             move_robobo(p, rob)
 
-def get_target(points_red, points_green):
+def get_target(points_green, points_red):
     target = -1
     width, height, center = 640, 480, 150
     red_box_in_place = False
@@ -148,15 +148,18 @@ def get_target(points_red, points_green):
             target = 2
         else:
             target = 3
+    # elif red_box_in_place:
+    #     rnd = random.random()
+    #     target = 3 if rnd > 0.5 else 2
     else:
         target = 1
-    return target
+    return target, red_box_in_place
 
 def collide_check(robot_pos, food_pos):
     # Replace this with your actual collision detection logic
     return robot_pos == food_pos
 
-def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer) -> nn.Module:
+def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer, max_steps=100, max_rounds=50) -> nn.Module:
     print('Started training')
     model.train()
     optimizer.zero_grad()
@@ -165,7 +168,7 @@ def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer) -> nn.Module:
     seq_length = 16
     # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda i: min(i / 500, 1.0))
     # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda i: max(-math.sqrt(i*(1/200))+2, 1.0))
-    for round_ in range(50): #Reset the robobo and target 10 times with or without random pos
+    for round_ in range(max_rounds): #Reset the robobo and target 10 times with or without random pos
         rob.play_simulation()
         start = time.time()
         rob.set_phone_tilt_blocking(97, 100) #Angle phone forward
@@ -188,15 +191,17 @@ def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer) -> nn.Module:
             if not collide_check(rob.position(), rob.get_food_position()) and (rob.position() != rob.base_position()) and (rob.get_food_position() != rob.base_position()):
                 break
 
-
-        for step in range(100): # Keep going unless 3 minutes is reached or all food is collected
+        # rob.set_position(Position(-2.25-(random.random()*1.75), (random.random()*1.6)-0.048, 0.075), Orientation(-90, -90, -90))
+        max_resets_overfitting_red = 100
+        max_resets = 0
+        for step in range(max_steps): # Keep going unless 3 minutes is reached or all food is collected
             did_optim = False
-            img_, points_green, points_red = get_img(rob, noise_thresh=0.2)
+            img_, points_green, points_red = get_img(rob)
             x = torch.tensor(np.expand_dims(img_.swapaxes(-1, 0).swapaxes(-1, 1), 0), dtype=torch.float32)
             p, seq_new = model(x, seq) #Do the forward pass
             p = p[0]
             move = move_robobo(p, rob)
-            target = get_target(points_green, points_red)
+            target, red_box_in_place = get_target(points_green, points_red)
 
             target = torch.tensor(target, dtype=torch.long)
             loss = loss_fn(p, target)
@@ -209,11 +214,19 @@ def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer) -> nn.Module:
                 did_optim = True
             seq = seq_new.detach()
 
-            print(f'round: {round_}, loss: {loss.item()}, nr_food: {rob.nr_food_collected()}, target: {target.item()}, direction: {move}, learning_rate: {optimizer.param_groups[0]["lr"]}')
+            print(f'round: {round_}, loss: {loss.item()}, nr_food: {rob.nr_food_collected()}, target: {target.item()}, direction: {move}, learning_rate: {optimizer.param_groups[0]["lr"]}, redbox in place: {red_box_in_place}')
             loss_am.append(str(loss.item()))
             actions.append(str(move))
             food.append(str(rob.nr_food_collected()))
             target_am.append(str(target.item()))
+            if max_resets <= max_resets_overfitting_red and len(points_red) == 0:
+                print('early resetting scene, too much wrong move')
+                rob.stop_simulation()
+                time.sleep(0.25)
+                rob.play_simulation()
+                rob.set_phone_tilt_blocking(97, 100) #Angle phone forward
+                seq = torch.zeros([1,seq_length,model.lstm_features], requires_grad=True)
+                max_resets+=1
             if rob.base_got_food():
                 print(f'object_completed within time: {time.time() - start}')
                 break
@@ -280,6 +293,7 @@ def run_lstm_classification(
                     if point[0] > 640//2 - 30 and point[0] < 640//2 + 30 and \
                         point[1] > 415:
                         red_box_in_place = True
+            print(red_box_in_place, points_red)
             if red_box_in_place and len(points_green) > 0:
                 centroid, points_left, points_right = point_and_move(points_green, width, height, center)
                 if centroid:
@@ -305,6 +319,7 @@ def run_lstm_classification(
             else:
                 target = 1
                 rob.move_blocking(-25, -60, 250)
+            time.sleep(1)
         return
     # Define the model and set it into train mode, together with the optimizer
     # with torch.autograd.detect_anomaly():
