@@ -16,7 +16,7 @@ param([string]$mode)
 
 if ($mode -eq "--simulation") {
     Write-Host "Running in simulation mode. Starting coppeliaSim..."
-	Start-Process powershell -ArgumentList " -NoExit -Command & { .\scripts\start_coppelia_sim.ps1 .\scenes\arena_approach.ttt }" #-WindowStyle Hidden
+	Start-Process powershell -ArgumentList " -NoExit -Command & { .\scripts\start_coppelia_sim.ps1 .\scenes\arena_push_easy_upside_downcam.ttt }" #-WindowStyle Hidden
 	}
 elseif ($mode -ne "--hardware") {
     Write-Host "Invalid mode or no mode specified: $mode. Either --simulation or --hardware"
