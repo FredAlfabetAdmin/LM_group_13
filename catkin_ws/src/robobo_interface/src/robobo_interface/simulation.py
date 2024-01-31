@@ -562,12 +562,36 @@ class SimulationRobobo(IRobobo):
             self._connection_id, self._target, -1, simConst.simx_opmode_blocking
         )
         return Position(*pos)
+    
+    def get_food_position(self):
+        """Get the position of the base to deliver food at.
+
+        This only works in the simulation.
+        Trivially doesn't work when the simulation does not have a base.
+        """
+        if self._food is None:
+            raise ValueError("Connected scene does not appear to have a base")
+
+        pos = sim.simxGetObjectPosition(
+            self._connection_id, self._food, -1, simConst.simx_opmode_blocking
+        )
+        return Position(*pos)
 
     def set_target_position(self, position: Position) -> None:
         """Set the position of the Robobo in the simulation"""
         sim.simxSetObjectPosition(
             self._connection_id,
             self._target,
+            -1,
+            [position.x, position.y, position.z],
+            simConst.simx_opmode_blocking,
+        )
+    
+    def set_food_position(self, position: Position) -> None:
+        """Set the position of the food in the simulation"""
+        sim.simxSetObjectPosition(
+            self._connection_id,
+            self._food,
             -1,
             [position.x, position.y, position.z],
             simConst.simx_opmode_blocking,

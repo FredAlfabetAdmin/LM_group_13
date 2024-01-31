@@ -152,6 +152,10 @@ def get_target(points_red, points_green):
         target = 1
     return target
 
+def collide_check(robot_pos, food_pos):
+    # Replace this with your actual collision detection logic
+    return robot_pos == food_pos
+
 def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer) -> nn.Module:
     print('Started training')
     model.train()
@@ -168,7 +172,23 @@ def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer) -> nn.Module:
         loss_am, actions, food, target_am = [], [], [], []
         seq = torch.zeros([1,seq_length,model.lstm_features], requires_grad=True)
         # Set a random position of the robobo every round
-        # rob.set_position(Position(-2.25-(random.random()*1.75), (random.random()*1.6)-0.048, 0.075), Orientation(-90, -90, -90))
+        # rob.set_position(Position(-2.25-(random.random()*1.675), (random.random()*1.622)-0.048, 0.03971), Orientation(-90, -90, -90))
+        # rob.set_food_position(Position(-3.925-(random.random()*1.675), (random.random()*1.622)-1.677, 0.03971))
+        # rob top left: -2.25 , -0,048 , + 0.03971
+        # rob bot right: -3.925 , -1.677 , + 0.03971      
+        # food top left: -2.125 , -0.2 , +0.0111
+        # food bot right: -4.125 , +1.8 ,  +0.0111
+        # base: 1x1 and pos: -3.2 , +1,75 , +0.002 let food not spawn here
+        # Constant for the allowed spawn point
+        while True:
+            rob.set_position(Position(-2.25-(random.random()*1.675), (random.random()*1.622)-0.048, 0.03971), Orientation(-90, -90, -90))
+            rob.set_food_position(Position(-3.925-(random.random()*1.675), (random.random()*1.622)-1.677, 0.03971))
+            
+            # Check if the positions collide or are at the allowed spawn point
+            if not collide_check(rob.position(), rob.get_food_position()) and (rob.position() != rob.base_position()) and (rob.get_food_position() != rob.base_position()):
+                break
+
+
         for step in range(100): # Keep going unless 3 minutes is reached or all food is collected
             did_optim = False
             img_, points_green, points_red = get_img(rob, noise_thresh=0.2)
