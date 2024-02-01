@@ -116,7 +116,7 @@ def evaluation(rob, model: nn.Module):
             targets = []
             pees = []
 
-            for step_ in range(200):
+            for step_ in range(10):
             #while True:
                 # Get the input data
                 img_, points = get_img(rob)
@@ -131,7 +131,7 @@ def evaluation(rob, model: nn.Module):
                 
                 foods_collected.append(str(rob.nr_food_collected()) + " ")
                 robot_locations.append(get_xyz(rob.position()) + " ")
-                actions.append(str(action_taken) + " ")
+                actions.append(str(action_taken.item()) + " ")
                 targets.append(str(target.item()) + " ")
 
                 losses.append(str(loss.item()) + " ")

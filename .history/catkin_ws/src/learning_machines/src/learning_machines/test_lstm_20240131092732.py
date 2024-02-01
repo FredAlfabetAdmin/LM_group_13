@@ -20,7 +20,6 @@ import numpy as np
 import joblib
 import cv2
 import math
-import os
 
 def eucl_fn(point1, point2):
     return math.sqrt((point1[0]-point2[0])**2 + (point1[1]-point2[1])**2)
@@ -93,77 +92,19 @@ def move_robobo(movement, rob):
     return move_pr
 
 def evaluation(rob, model: nn.Module):
-    model.load_state_dict(torch.load('./best_task_2.ckpt'))
+    model.load_state_dict(torch.load('./model_33.ckpt'))
     model.eval()
-    
-
-    directory = "./eval_data/"
-    if not os.path.exists(directory):
-        os.mkdir(directory)
-    
-    with open(f'{directory}eval_settings.txt', "w+") as file_:
-        file_.writelines([get_xyz(rob.position())])
     seq_length = 8
     with torch.no_grad():
         rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
         seq = torch.zeros([1,seq_length,model.lstm_features])
-        for round_ in range(1):
-            print(f"Round: {round_}")
-            robot_locations = []
-            actions = []
-            losses = []
-            foods_collected = []
-            targets = []
-            pees = []
-
-            for step_ in range(200):
-            #while True:
-                # Get the input data
-                img_, points = get_img(rob)
-                x = torch.tensor(np.expand_dims(img_.swapaxes(-1, 0).swapaxes(-1, 1), 0), dtype=torch.float32)
-                p, seq = model(x, seq) #Do the forward pass
-                p = p[0]
-
-                #move_robobo(p, rob)
-
-                action_taken = move_robobo(p, rob)
-                loss, target = calc_loss_eval(points, p)
-                
-                foods_collected.append(str(rob.nr_food_collected()) + " ")
-                robot_locations.append(get_xyz(rob.position()) + " ")
-                actions.append(str(action_taken) + " ")
-                targets.append(str(target.item()) + " ")
-
-                losses.append(str(loss.item()) + " ")
-                print(nn.functional.softmax(p))
-                pees.append(str(nn.functional.softmax(p).numpy().tolist()))
-
-            #print(losses)
-            with open(f'{directory}eval_loss_{round_}.txt', "w+") as file_:
-                file_.writelines(losses)
-            
-            #print(foods_collected)
-            with open(f'{directory}eval_food_{round_}.txt', "w+") as file_:
-                file_.writelines(foods_collected)
-            
-            #print(actions)
-            with open(f'{directory}eval_actions_{round_}.txt', "w+") as file_:
-                file_.writelines(actions)
-            
-            #print(robot_locations)
-            with open(f'{directory}eval_robot_locations_{round_}.txt', "w+") as file_:
-                file_.writelines(robot_locations)
-
-            with open(f'{directory}eval_pees_{round_}.txt', "w+") as file_:
-                file_.writelines(pees)
-
-            with open(f'{directory}eval_targets_{round_}.txt', "w+") as file_:
-                file_.writelines(targets)
-
-            rob.stop_simulation()
-            time.sleep(1)
-            rob.play_simulation()
-            print("starting new round")
+        while True:
+            # Get the input data
+            img_, points = get_img(rob)
+            x = torch.tensor(np.expand_dims(img_.swapaxes(-1, 0).swapaxes(-1, 1), 0), dtype=torch.float32)
+            p, seq = model(x, seq) #Do the forward pass
+            p = p[0]
+            move_robobo(p, rob)
 
 def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer) -> nn.Module:
     print('Started training')
@@ -314,36 +255,3 @@ def run_lstm_classification(
 
     if isinstance(rob, SimulationRobobo):
         rob.stop_simulation()
-
-
-
-
-def calc_loss_eval(points, p):
-    loss_fn = nn.CrossEntropyLoss()
-    target = -1
-    width, height, center = 640, 480, 100
-    if len(points) > 0:
-        points_right, points_left = 0, 0
-        for point in points:
-            if point[0] >= (width//2-center//2) and point[0] <= (width//2+center//2): #If near center ignore the rest and continue forward
-                target = 0
-                break
-            if point[0] <= (width//2-center//2): #If on the left
-                points_left+=1
-            else:
-                points_right+=1
-        if target != 0:
-            if points_left >= points_right: #If more points on the left move left.
-                target = 2
-            else:
-                target = 3
-    else: #If not near, just go backward, most likely in the wall
-        target = 1
-
-    target = torch.tensor(target, dtype=torch.long)
-    loss = loss_fn(p, target)
-    return loss, target
-
-
-def get_xyz(position: Position):
-    return str({"x":position.x, "y":position.y, "z":position.z})

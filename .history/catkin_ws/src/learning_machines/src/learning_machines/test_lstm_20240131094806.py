@@ -96,6 +96,11 @@ def evaluation(rob, model: nn.Module):
     model.load_state_dict(torch.load('./best_task_2.ckpt'))
     model.eval()
     
+    robot_locations = []
+    actions = []
+    losses = []
+    foods_collected = []
+    foods = []
 
     directory = "./eval_data/"
     if not os.path.exists(directory):
@@ -107,63 +112,39 @@ def evaluation(rob, model: nn.Module):
     with torch.no_grad():
         rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
         seq = torch.zeros([1,seq_length,model.lstm_features])
-        for round_ in range(1):
-            print(f"Round: {round_}")
-            robot_locations = []
-            actions = []
-            losses = []
-            foods_collected = []
-            targets = []
-            pees = []
+        for round_ in range(10:)
+        #while True:
+            # Get the input data
+            img_, points = get_img(rob)
+            x = torch.tensor(np.expand_dims(img_.swapaxes(-1, 0).swapaxes(-1, 1), 0), dtype=torch.float32)
+            p, seq = model(x, seq) #Do the forward pass
+            p = p[0]
+            #move_robobo(p, rob)
 
-            for step_ in range(200):
-            #while True:
-                # Get the input data
-                img_, points = get_img(rob)
-                x = torch.tensor(np.expand_dims(img_.swapaxes(-1, 0).swapaxes(-1, 1), 0), dtype=torch.float32)
-                p, seq = model(x, seq) #Do the forward pass
-                p = p[0]
-
-                #move_robobo(p, rob)
-
-                action_taken = move_robobo(p, rob)
-                loss, target = calc_loss_eval(points, p)
-                
-                foods_collected.append(str(rob.nr_food_collected()) + " ")
-                robot_locations.append(get_xyz(rob.position()) + " ")
-                actions.append(str(action_taken) + " ")
-                targets.append(str(target.item()) + " ")
-
-                losses.append(str(loss.item()) + " ")
-                print(nn.functional.softmax(p))
-                pees.append(str(nn.functional.softmax(p).numpy().tolist()))
-
-            #print(losses)
-            with open(f'{directory}eval_loss_{round_}.txt', "w+") as file_:
-                file_.writelines(losses)
+            action_taken = move_robobo(p, rob)
+            loss = calc_loss_eval(points, p)
             
-            #print(foods_collected)
-            with open(f'{directory}eval_food_{round_}.txt', "w+") as file_:
-                file_.writelines(foods_collected)
             
-            #print(actions)
-            with open(f'{directory}eval_actions_{round_}.txt', "w+") as file_:
-                file_.writelines(actions)
-            
-            #print(robot_locations)
-            with open(f'{directory}eval_robot_locations_{round_}.txt', "w+") as file_:
-                file_.writelines(robot_locations)
+            foods_collected.append(str(rob.nr_food_collected()) + " ")
+            robot_locations.append(get_xyz(rob.position()) + " ")
+            actions.append(str(action_taken) + " ")
+            losses.append(str(loss.item()) + " ")
 
-            with open(f'{directory}eval_pees_{round_}.txt', "w+") as file_:
-                file_.writelines(pees)
-
-            with open(f'{directory}eval_targets_{round_}.txt', "w+") as file_:
-                file_.writelines(targets)
-
-            rob.stop_simulation()
-            time.sleep(1)
-            rob.play_simulation()
-            print("starting new round")
+        #print(losses)
+        with open(f'{directory}eval_loss.txt', "w+") as file_:
+            file_.writelines(losses)
+        
+        #print(foods_collected)
+        with open(f'{directory}eval_food.txt', "w+") as file_:
+            file_.writelines(foods_collected)
+        
+        #print(actions)
+        with open(f'{directory}eval_actions.txt', "w+") as file_:
+            file_.writelines(actions)
+        
+        #print(robot_locations)
+        with open(f'{directory}eval_robot_locations.txt', "w+") as file_:
+            file_.writelines(robot_locations)
 
 def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer) -> nn.Module:
     print('Started training')
@@ -342,7 +323,7 @@ def calc_loss_eval(points, p):
 
     target = torch.tensor(target, dtype=torch.long)
     loss = loss_fn(p, target)
-    return loss, target
+    return loss
 
 
 def get_xyz(position: Position):

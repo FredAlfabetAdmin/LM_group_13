@@ -116,7 +116,7 @@ def evaluation(rob, model: nn.Module):
             targets = []
             pees = []
 
-            for step_ in range(200):
+            for step_ in range(10):
             #while True:
                 # Get the input data
                 img_, points = get_img(rob)

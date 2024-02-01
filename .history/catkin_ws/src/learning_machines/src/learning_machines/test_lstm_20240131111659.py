@@ -107,36 +107,32 @@ def evaluation(rob, model: nn.Module):
     with torch.no_grad():
         rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
         seq = torch.zeros([1,seq_length,model.lstm_features])
-        for round_ in range(1):
-            print(f"Round: {round_}")
+        for round_ in range(10):
             robot_locations = []
             actions = []
             losses = []
             foods_collected = []
-            targets = []
+            foods = []
             pees = []
 
-            for step_ in range(200):
+            for step_ in range(5):
             #while True:
                 # Get the input data
                 img_, points = get_img(rob)
                 x = torch.tensor(np.expand_dims(img_.swapaxes(-1, 0).swapaxes(-1, 1), 0), dtype=torch.float32)
                 p, seq = model(x, seq) #Do the forward pass
                 p = p[0]
-
                 #move_robobo(p, rob)
 
                 action_taken = move_robobo(p, rob)
-                loss, target = calc_loss_eval(points, p)
+                loss = calc_loss_eval(points, p)
                 
                 foods_collected.append(str(rob.nr_food_collected()) + " ")
                 robot_locations.append(get_xyz(rob.position()) + " ")
                 actions.append(str(action_taken) + " ")
-                targets.append(str(target.item()) + " ")
-
                 losses.append(str(loss.item()) + " ")
-                print(nn.functional.softmax(p))
-                pees.append(str(nn.functional.softmax(p).numpy().tolist()))
+                pees.append(str(p))
+
 
             #print(losses)
             with open(f'{directory}eval_loss_{round_}.txt', "w+") as file_:
@@ -154,16 +150,9 @@ def evaluation(rob, model: nn.Module):
             with open(f'{directory}eval_robot_locations_{round_}.txt', "w+") as file_:
                 file_.writelines(robot_locations)
 
-            with open(f'{directory}eval_pees_{round_}.txt', "w+") as file_:
-                file_.writelines(pees)
+            with open(f'{directory}eval_robot_locations_{round_}.txt', "w+") as file_:
+                file_.writelines(robot_locations)
 
-            with open(f'{directory}eval_targets_{round_}.txt', "w+") as file_:
-                file_.writelines(targets)
-
-            rob.stop_simulation()
-            time.sleep(1)
-            rob.play_simulation()
-            print("starting new round")
 
 def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer) -> nn.Module:
     print('Started training')
@@ -342,7 +331,7 @@ def calc_loss_eval(points, p):
 
     target = torch.tensor(target, dtype=torch.long)
     loss = loss_fn(p, target)
-    return loss, target
+    return loss
 
 
 def get_xyz(position: Position):
