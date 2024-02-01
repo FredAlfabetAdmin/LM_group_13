@@ -109,7 +109,7 @@ def move_robobo(movement, rob):
     return move_pr
 
 def evaluation(rob, model: nn.Module):
-    model.load_state_dict(torch.load('./model_33.ckpt'))
+    model.load_state_dict(torch.load('./model_49.ckpt'))
     model.eval()
     seq_length = 8
     with torch.no_grad():
@@ -175,9 +175,9 @@ def setup_rand(rob):
         base_pos = rob.base_position()
         if not (food_pos.x > robot_pos.x - 0.1 and food_pos.x < robot_pos.x + 0.1 and \
                 food_pos.y > robot_pos.y - 0.1 and food_pos.y < robot_pos.y + 0.1)  \
-            and (robot_pos.x > base_pos.x - 0.1 and robot_pos.x < base_pos.x + 0.1 and \
+            and not (robot_pos.x > base_pos.x - 0.1 and robot_pos.x < base_pos.x + 0.1 and \
                 robot_pos.y > base_pos.y - 0.1 and robot_pos.y < base_pos.y + 0.1) \
-            and (food_pos.x > base_pos.x - 0.1 and food_pos.x < base_pos.x + 0.1 and \
+            and not (food_pos.x > base_pos.x - 0.1 and food_pos.x < base_pos.x + 0.1 and \
                 food_pos.y > base_pos.y - 0.1 and food_pos.y < base_pos.y + 0.1):
             break
 
@@ -187,7 +187,7 @@ def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer, max_steps=100
     optimizer.zero_grad()
     loss_fn = nn.CrossEntropyLoss()
     all_loss, all_actions, all_food, all_target = [], [], [], []
-    seq_length = 16
+    seq_length = 8
     # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda i: min(i / 500, 1.0))
     # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda i: max(-math.sqrt(i*(1/200))+2, 1.0))
     for round_ in range(max_rounds): #Reset the robobo and target 10 times with or without random pos
@@ -200,12 +200,12 @@ def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer, max_steps=100
         early_resetting = False
         random_pos = False
         extra_steps = 0
-        if round_ < 5:
+        if round_ < 1:
             early_resetting = True
-        elif round_ < 15 and round_ >= 5:
-            setup_rand(rob)
-            random_pos = True
-            extra_steps = 100
+        # elif round_ < 15 and round_ >= 5:
+        #     setup_rand(rob)
+        #     random_pos = True
+        #     extra_steps = 100
 
         # rob.set_position(Position(-2.25-(random.random()*1.75), (random.random()*1.6)-0.048, 0.075), Orientation(-90, -90, -90))
         max_resets_overfitting_red = 100
@@ -223,7 +223,7 @@ def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer, max_steps=100
             loss = loss_fn(p, target)
 
             loss.backward() #Do the backward pass
-            if step % 4 == 0 and step != 0:
+            if step % 16 == 0 and step != 0:
                 optimizer.step() #Do a step in the learning space
                 optimizer.zero_grad() #Clear the gradients in the optimizer
                 # scheduler.step() #Increase the learning rate

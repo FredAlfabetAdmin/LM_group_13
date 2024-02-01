@@ -58,14 +58,14 @@ class CNNwithLSTM(nn.Module):
             nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(0.1),
             nn.MaxPool2d(kernel_size=2, stride=2),
-            # Reduce 4
-            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
-            nn.LeakyReLU(0.1),
-            nn.MaxPool2d(kernel_size=2, stride=2),
+            # # Reduce 4
+            # nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
+            # nn.LeakyReLU(0.1),
+            # nn.MaxPool2d(kernel_size=2, stride=2),
         )
 
-        self.cnn_output = 128 * (640//16) * (480//16)
-        self.lstm_features = 512
+        self.cnn_output = 64 * (640//8) * (480//8)
+        self.lstm_features = 1024
 
         # Connection layer
         self.connection = nn.Linear(self.cnn_output, self.lstm_features)
