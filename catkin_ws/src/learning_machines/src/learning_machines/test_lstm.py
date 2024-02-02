@@ -21,6 +21,8 @@ import joblib
 import cv2
 import math
 import os
+import random
+import datetime
 
 def eucl_fn(point1, point2):
     return math.sqrt((point1[0]-point2[0])**2 + (point1[1]-point2[1])**2)
@@ -55,7 +57,7 @@ def get_img(rob: IRobobo, noise_thresh = 0):
     
     img = img + (np.random.randn(img.shape[0], img.shape[1], img.shape[2]) * noise_thresh)
 
-    cv2.imwrite(str("./frame.png"), img)
+    #cv2.imwrite(str(f"./{int(random.randint(1, 1000))}_frame.png"), img)
 
     # Create a mask for the green color
     mask_green = cv2.inRange(hsv_image, lower_green, upper_green)
@@ -107,8 +109,10 @@ def evaluation(rob, model: nn.Module):
     with torch.no_grad():
         rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
         seq = torch.zeros([1,seq_length,model.lstm_features])
-        for round_ in range(1):
+        for round_ in range(5):
             print(f"Round: {round_}")
+            start_time = datetime.datetime.now()
+            print(f"Starting time: {start_time}")
             robot_locations = []
             actions = []
             losses = []
@@ -116,10 +120,11 @@ def evaluation(rob, model: nn.Module):
             targets = []
             pees = []
 
-            for step_ in range(200):
+            for step_ in range(300):
             #while True:
                 # Get the input data
                 img_, points = get_img(rob)
+
                 x = torch.tensor(np.expand_dims(img_.swapaxes(-1, 0).swapaxes(-1, 1), 0), dtype=torch.float32)
                 p, seq = model(x, seq) #Do the forward pass
                 p = p[0]
@@ -135,8 +140,9 @@ def evaluation(rob, model: nn.Module):
                 targets.append(str(target.item()) + " ")
 
                 losses.append(str(loss.item()) + " ")
-                print(nn.functional.softmax(p))
+                #print(nn.functional.softmax(p))
                 pees.append(str(nn.functional.softmax(p).numpy().tolist()))
+            print(f"Time passed for this round: {datetime.datetime.now() - start_time}")
 
             #print(losses)
             with open(f'{directory}eval_loss_{round_}.txt', "w+") as file_:
@@ -163,7 +169,6 @@ def evaluation(rob, model: nn.Module):
             rob.stop_simulation()
             time.sleep(1)
             rob.play_simulation()
-            print("starting new round")
 
 def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer) -> nn.Module:
     print('Started training')
