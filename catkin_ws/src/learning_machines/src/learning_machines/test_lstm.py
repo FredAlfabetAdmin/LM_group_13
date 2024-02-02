@@ -25,12 +25,16 @@ import pandas as pd
 def eucl_fn(point1, point2):
     return math.sqrt((point1[0]-point2[0])**2 + (point1[1]-point2[1])**2)
 
-def get_img(rob: IRobobo, noise_thresh = 0, frame_name = 'frame'):
-    img = rob.get_image_front()
+def get_img(rob: IRobobo, noise_thresh = 0, frame_name = 'frame', read_img = None):
+    if read_img is None:
+        img = rob.get_image_front()
+    else:
+        img = cv2.imread(read_img)
 
     img = cv2.resize(img, (640, 480))
     # Convert the image to HSV color space (Hue, Saturation, Value)
     hsv_image = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    cv2.imwrite(str(f"./{frame_name}.png"), img)
     # cv2.imwrite(str("./frame_org.png"), img)
 
     # Define the color ranges for green, yellow, and white in HSV
@@ -60,7 +64,7 @@ def get_img(rob: IRobobo, noise_thresh = 0, frame_name = 'frame'):
     
     img = img + (np.random.randn(img.shape[0], img.shape[1], img.shape[2]) * noise_thresh)
 
-    cv2.imwrite(str(f"./{frame_name}.png"), img)
+    cv2.imwrite(str(f"./frame.png"), img)
 
     # Create a mask for the green color
     mask_green = cv2.inRange(hsv_image, lower_green, upper_green)
@@ -128,9 +132,9 @@ def evaluation(rob, model: nn.Module):
 
 class Targetter():
     def __init__(self):
-        self.previous_action = None
-        self.previous_green = None
-        self.previous_red = None
+        self.previous_action = -1
+        self.previous_green = False
+        self.previous_red = False
     
     def get_target(self, points_green, points_red):
         target = -1
@@ -158,16 +162,17 @@ class Targetter():
                 target = 1
             else:
                 target = 2
-        elif self.previous_action is not None and self.previous_green is not None and self.previous_red is not None: 
-            # If we did see the base in the last move and we still have the box
-            if self.previous_green and red_box_in_place:
-                target = 4 if self.previous_action == 3 else 3 if self.previous_action == 4 else 5
-            elif self.previous_red: #If we saw the red box before
-                target = 4 if self.previous_action == 3 else 3 if self.previous_action == 4 else 5
-            else: #Otherwise go straight backwards
-                target = 3
-        else:
+        elif (self.previous_green and red_box_in_place) or (self.previous_red and not red_box_in_place):
+            target = 4 if self.previous_action == 3 else 3
+        elif self.previous_action == 4: #Otherwise keep going in the direction when rotating
+            target = 4
+        elif self.previous_action == 3:
             target = 3
+        else: #This is more when the scene is init and we dont know anything
+            if random.random() > 0.5:
+                target = 3
+            else:
+                target = 4
         self.previous_action = target
         self.previous_green = green_base_in_sight
         self.previous_red = red_box_in_place
@@ -326,7 +331,15 @@ def run_lstm_classification(
     
     print('connected')
     if True:
-        for round_ in range(50):
+        import glob, os
+        round_offset = 0
+        # Clean the dataset dir
+        for file_ in glob.glob('./dataset/images/*.png'):
+            os.remove(file_)
+        for file_ in glob.glob('./dataset/*.csv'):
+            os.remove(file_)
+        round_ = 0 + round_offset
+        while round_ < 200:
             rob.play_simulation()
             df = {
                 'image': [],
@@ -345,20 +358,27 @@ def run_lstm_classification(
                 df['image'].append(f'frame_{round_}_{i}.png')
                 df['target'].append(target)
                 if target == 0: #Move Forward
-                    rob.move_blocking(50, 50, 250)
+                    rob.move_blocking(50, 50, 500)
                 elif target == 1: #Move left Forward
                     rob.move_blocking(25, 50, 250)
                 elif target == 2: #Move right Forward
                     rob.move_blocking(50, 25, 250)
-                elif target == 3: #Rotate Right Backward
-                    rob.move_blocking(-25, -50, 75)
-                elif target == 4: #Rotate Left Backward
-                    rob.move_blocking(-50, -25, 75)
+                elif target == 3: #Rotate Left
+                    rob.move_blocking(-50, 50, 128)
+                elif target == 4: #Rotate Right
+                    rob.move_blocking(50, -50, 128)
                 i+=1
-                if rob.base_got_food():
+                if rob.base_got_food() or i > 150:
+                    if i > 150:
+                        for file_ in glob.glob(f'./dataset/images/frame_{round_}_*.png'):
+                            os.remove(file_)
+                        for file_ in glob.glob(f'./dataset/{round_}.csv'):
+                            os.remove(file_)
+                        round_ -= 1
                     print(i)
+                    round_ += 1
                     break
-            pd.DataFrame.from_dict(df).to_csv(f'./dataset/{round_}_{i}.csv', index=False)
+            pd.DataFrame.from_dict(df).to_csv(f'./dataset/{round_}.csv', index=False)
             rob.stop_simulation()
             time.sleep(0.25)
         return
