@@ -59,13 +59,13 @@ class CNNwithLSTM(nn.Module):
             nn.LeakyReLU(0.1),
             nn.MaxPool2d(kernel_size=2, stride=2),
             # # Reduce 4
-            # nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
-            # nn.LeakyReLU(0.1),
-            # nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
+            nn.LeakyReLU(0.1),
+            nn.MaxPool2d(kernel_size=2, stride=2),
         )
 
         self.cnn_output = 128 * (640//16) * (480//16)
-        self.lstm_features = 2048 + 2 # + 2 for binary classification if red or green
+        self.lstm_features = 2048 # + 2 # + 2 for binary classification if red or green
 
         # Connection layer
         self.connection = nn.Linear(self.cnn_output, self.lstm_features)
@@ -84,13 +84,13 @@ class CNNwithLSTM(nn.Module):
         x = self.cnn(x)
         x = x.view(-1, self.cnn_output)  # Adjusted to the new input size
         x = self.connection(x)
-        ln = x[-2:]
-        bn = x[:-2]
-        ln = self.ln_activation(ln)
-        bn = self.bn_activation(bn)
-        bn = torch.where(bn <= 0.5, torch.tensor(0.0, device=bn.device), bn)
-        bn = torch.where(bn > 0.5, torch.tensor(1.0, device=bn.device), bn)
-        x = torch.cat([ln, bn], dim=0)
+        # ln = x[-2:]
+        # bn = x[:-2]
+        # ln = self.ln_activation(ln)
+        # bn = self.bn_activation(bn)
+        # bn = torch.where(bn <= 0.5, torch.tensor(0.0, device=bn.device), bn)
+        # bn = torch.where(bn > 0.5, torch.tensor(1.0, device=bn.device), bn)
+        # x = torch.cat([ln, bn], dim=0)
         seq = torch.cat([seq[:,1:,:], x.unsqueeze(1)], dim=1)
         x, _ = self.lstm(seq)
         x = x[:, -1, :]

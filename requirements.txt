@@ -1,6 +1,8 @@
 numpy~=1.24
 opencv-python~=4.8
+pandas
 cbor2
 zmq
 joblib
 scikit-learn
+networkx

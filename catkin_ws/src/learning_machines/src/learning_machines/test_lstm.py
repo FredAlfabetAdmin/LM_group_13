@@ -20,17 +20,18 @@ import numpy as np
 import joblib
 import cv2
 import math
+import pandas as pd
 
 def eucl_fn(point1, point2):
     return math.sqrt((point1[0]-point2[0])**2 + (point1[1]-point2[1])**2)
 
-def get_img(rob: IRobobo, noise_thresh = 0):
+def get_img(rob: IRobobo, noise_thresh = 0, frame_name = 'frame'):
     img = rob.get_image_front()
 
     img = cv2.resize(img, (640, 480))
     # Convert the image to HSV color space (Hue, Saturation, Value)
     hsv_image = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    cv2.imwrite(str("./frame_org.png"), img)
+    # cv2.imwrite(str("./frame_org.png"), img)
 
     # Define the color ranges for green, yellow, and white in HSV
     lower_green = np.array([40, 40, 40])
@@ -59,7 +60,7 @@ def get_img(rob: IRobobo, noise_thresh = 0):
     
     img = img + (np.random.randn(img.shape[0], img.shape[1], img.shape[2]) * noise_thresh)
 
-    cv2.imwrite(str("./frame.png"), img)
+    cv2.imwrite(str(f"./{frame_name}.png"), img)
 
     # Create a mask for the green color
     mask_green = cv2.inRange(hsv_image, lower_green, upper_green)
@@ -97,16 +98,17 @@ def move_robobo(movement, rob):
     movement = nn.functional.softmax(movement.detach(), dim=0)
     movement = movement.detach().numpy() #Use clone since detach doesnt properly work
     # move_pr = np.argmax(movement)
-    move_pr = np.random.choice([0,1,2,3], p=movement)
+    move_pr = np.random.choice([0,1,2,3,4], p=movement)
     if move_pr == 0: #Move forward
         rob.move_blocking(50, 50, 250)
-    elif move_pr == 1: #Move backward
-        rob.move_blocking(50, -50, 100)
-        # rob.move_blocking(-25, -60, 250)
-    elif move_pr == 2: #Move left
+    elif move_pr == 1: #Move left
         rob.move_blocking(25, 50, 250)
-    elif move_pr == 3: #Move right
+    elif move_pr == 2: #Move right
         rob.move_blocking(50, 25, 250)
+    elif move_pr == 3: #Rotate Right
+        rob.move_blocking(50, -50, 125)
+    elif move_pr == 4: #Rotate Left
+        rob.move_blocking(-50, 50, 125)
     return move_pr
 
 def evaluation(rob, model: nn.Module):
@@ -124,38 +126,52 @@ def evaluation(rob, model: nn.Module):
             p = p[0]
             move_robobo(p, rob)
 
-def get_target(points_green, points_red):
-    target = -1
-    width, height, center = 640, 480, 150
-    red_box_in_place = False
-    green_box_in_place = len(points_green) > 0
-    if len(points_red) > 0:
-        for point in points_red: #Check if there is just a red box in front, otherwise ignore
-            if point[0] > 640//2 - 30 and point[0] < 640//2 + 30 and \
-                point[1] > 415:
-                red_box_in_place = True
-    if red_box_in_place and len(points_green) > 0:
-        centroid, points_left, points_right = point_and_move(points_green, width, height, center)
-        if centroid:
-            target = 0
-        elif points_left >= points_right:
-            target = 2
+class Targetter():
+    def __init__(self):
+        self.previous_action = None
+        self.previous_green = None
+        self.previous_red = None
+    
+    def get_target(self, points_green, points_red):
+        target = -1
+        width, height, center = 640, 480, 150
+        red_box_in_place = False
+        green_base_in_sight = len(points_green) > 0
+        if len(points_red) > 0:
+            for point in points_red: #Check if there is just a red box in front, otherwise ignore
+                if point[0] > 640//2 - 30 and point[0] < 640//2 + 30 and \
+                    point[1] > 400:
+                    red_box_in_place = True
+        if red_box_in_place and green_base_in_sight: #If we have the box and the green base is detected
+            centroid, points_left, points_right = point_and_move(points_green, width, height, center)
+            if centroid:
+                target = 0
+            elif points_left > points_right:
+                target = 1
+            else:
+                target = 2
+        elif len(points_red) > 0 and not red_box_in_place: #If we see the red box and dont have it yet
+            centroid, points_left, points_right = point_and_move(points_red, width, height, center)
+            if centroid:
+                target = 0
+            elif points_left > points_right:
+                target = 1
+            else:
+                target = 2
+        elif self.previous_action is not None and self.previous_green is not None and self.previous_red is not None: 
+            # If we did see the base in the last move and we still have the box
+            if self.previous_green and red_box_in_place:
+                target = 4 if self.previous_action == 3 else 3 if self.previous_action == 4 else 5
+            elif self.previous_red: #If we saw the red box before
+                target = 4 if self.previous_action == 3 else 3 if self.previous_action == 4 else 5
+            else: #Otherwise go straight backwards
+                target = 3
         else:
             target = 3
-    elif len(points_red) > 0 and not red_box_in_place:
-        centroid, points_left, points_right = point_and_move(points_red, width, height, center)
-        if centroid:
-            target = 0
-        elif points_left >= points_right:
-            target = 2
-        else:
-            target = 3
-    # elif red_box_in_place:
-    #     rnd = random.random()
-    #     target = 3 if rnd > 0.5 else 2
-    else:
-        target = 1
-    return target, red_box_in_place, green_box_in_place
+        self.previous_action = target
+        self.previous_green = green_base_in_sight
+        self.previous_red = red_box_in_place
+        return target, red_box_in_place, green_base_in_sight
 
 def setup_rand(rob):
     # Set a random position of the robobo every round
@@ -190,6 +206,7 @@ def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer, max_steps=40,
     loss_fn = nn.CrossEntropyLoss()
     all_loss, all_actions, all_food, all_target = [], [], [], []
     seq_length = 64
+    targetter = Targetter()
     # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda i: min(i / 500, 1.0))
     # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda i: max(-math.sqrt(i*(1/200))+2, 1.0))
     for round_ in range(max_rounds): #Reset the robobo and target 10 times with or without random pos
@@ -223,7 +240,7 @@ def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer, max_steps=40,
             p, seq_new = model(x, seq) #Do the forward pass
             p = p[0]
             move = move_robobo(p, rob)
-            target, red_box_in_place, green_box_in_place = get_target(points_green, points_red)
+            target, red_box_in_place, green_box_in_place = targetter.get_target(points_green, points_red)
 
             target = torch.tensor(target, dtype=torch.long)
             loss = loss_fn(p, target)
@@ -269,25 +286,25 @@ def train(rob, model: nn.Module, optimizer: torch.optim.Optimizer, max_steps=40,
         all_actions.append(' '.join(actions))
         all_food.append(' '.join(food))
         all_target.append(' '.join(target_am))
-        with open(f'./res_loss_{round_}.txt', "w") as file_:
+        with open(f'./res/res_loss_{round_}.txt', "w") as file_:
             file_.writelines(all_loss[-1])
-        with open(f'./res_food_{round_}.txt', "w") as file_:
+        with open(f'./res/res_food_{round_}.txt', "w") as file_:
             file_.writelines(all_food[-1])
-        with open(f'./res_target_{round_}.txt', "w") as file_:
+        with open(f'./res/res_target_{round_}.txt', "w") as file_:
             file_.writelines(all_target[-1])
-        with open(f'./res_action_{round_}.txt', "w") as file_:
+        with open(f'./res/res_action_{round_}.txt', "w") as file_:
             file_.writelines(all_actions[-1])
-        torch.save(model.state_dict(), f'./model_{round_}.ckpt')
+        torch.save(model.state_dict(), f'./models/model_{round_}.ckpt')
         
         rob.stop_simulation()
         time.sleep(0.25)
-    with open(f'./res_loss.txt', "w") as file_:
+    with open(f'./res/res_loss.txt', "w") as file_:
         file_.writelines(all_loss)
-    with open(f'./res_food.txt', "w") as file_:
+    with open(f'./res/res_food.txt', "w") as file_:
         file_.writelines(all_food)
-    with open(f'./res_target.txt', "w") as file_:
+    with open(f'./res/res_target.txt', "w") as file_:
         file_.writelines(all_target)
-    with open(f'./res_action.txt', "w") as file_:
+    with open(f'./res/res_action.txt', "w") as file_:
         file_.writelines(all_actions)
     return model
 
@@ -296,7 +313,6 @@ def point_and_move(points, width, height, center):
     for point in points:
         # if eucl_fn(point, [640//2, 480//2]) < center: #If near center ignore the rest and continue forward
         if point[0] >= (width//2-center//2) and point[0] <= (width//2+center//2): #If near center ignore the rest and continue forward
-            target = 0
             return True, None, None
         if point[0] <= (width//2-center//2): #If on the left
             points_left+=1
@@ -306,55 +322,49 @@ def point_and_move(points, width, height, center):
 
 def run_lstm_classification(
         rob: IRobobo, 
-        num_outputs=4, eval_=False):
+        num_outputs=5, eval_=False):
+    
+    print('connected')
+    if True:
+        for round_ in range(50):
+            rob.play_simulation()
+            df = {
+                'image': [],
+                'target': [],
+            }
+            i = 0
+            targetter = Targetter()
+            setup_rand(rob)
+            while True:
+                rob.set_phone_tilt_blocking(97, 100) #Angle phone forward
+                img, points_green, points_red = get_img(rob, frame_name=f'dataset/images/frame_{round_}_{i}')
+                target = -1
+                width, height, center = 640, 480, 150
+                red_box_in_place = False
+                target, red_box_in_place, green_box_in_place = targetter.get_target(points_green, points_red)
+                df['image'].append(f'frame_{round_}_{i}.png')
+                df['target'].append(target)
+                if target == 0: #Move Forward
+                    rob.move_blocking(50, 50, 250)
+                elif target == 1: #Move left Forward
+                    rob.move_blocking(25, 50, 250)
+                elif target == 2: #Move right Forward
+                    rob.move_blocking(50, 25, 250)
+                elif target == 3: #Rotate Right Backward
+                    rob.move_blocking(-25, -50, 75)
+                elif target == 4: #Rotate Left Backward
+                    rob.move_blocking(-50, -25, 75)
+                i+=1
+                if rob.base_got_food():
+                    print(i)
+                    break
+            pd.DataFrame.from_dict(df).to_csv(f'./dataset/{round_}_{i}.csv', index=False)
+            rob.stop_simulation()
+            time.sleep(0.25)
+        return
     
     if isinstance(rob, SimulationRobobo):
         rob.play_simulation()
-
-    print('connected')
-    if False:
-        i = 0
-        while True:
-            rob.set_phone_tilt_blocking(97, 100) #Angle phone forward
-            img, points_green, points_red = get_img(rob)
-            target = -1
-            width, height, center = 640, 480, 150
-            red_box_in_place = False
-            if len(points_red) > 0:
-                for point in points_red: #Check if there is just a red box in front, otherwise ignore
-                    if point[0] > 640//2 - 30 and point[0] < 640//2 + 30 and \
-                        point[1] > 415:
-                        red_box_in_place = True
-            if red_box_in_place and len(points_green) > 0:
-                centroid, points_left, points_right = point_and_move(points_green, width, height, center)
-                if centroid:
-                    target = 0
-                    rob.move_blocking(50,50,500)
-                elif points_left >= points_right:
-                    target = 2
-                    rob.move_blocking(25,50,250)
-                else:
-                    target = 3
-                    rob.move_blocking(50,25,250)
-            elif len(points_red) > 0 and not red_box_in_place:
-                centroid, points_left, points_right = point_and_move(points_red, width, height, center)
-                if centroid:
-                    target = 0
-                    rob.move_blocking(50,50,500)
-                elif points_left >= points_right:
-                    target = 2
-                    rob.move_blocking(25,50,250)
-                else:
-                    target = 3
-                    rob.move_blocking(50,25,250)
-            else:
-                target = 1
-                rob.move_blocking(-25, -60, 250)
-            i+=1
-            if rob.base_got_food():
-                print(i)
-                return
-        return
     # Define the model and set it into train mode, together with the optimizer
     # with torch.autograd.detect_anomaly():
     model = CNNwithLSTM(num_outputs)
@@ -368,7 +378,7 @@ def run_lstm_classification(
     optimizer = optim.Adam(params=model.parameters(), lr=0.005)
     model = train(rob, model, optimizer)
 
-    torch.save(model.state_dict(), './model.ckpt')
+    torch.save(model.state_dict(), './models/model.ckpt')
 
     if isinstance(rob, SimulationRobobo):
         rob.stop_simulation()
