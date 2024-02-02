@@ -109,7 +109,7 @@ def evaluation(rob, model: nn.Module):
     with torch.no_grad():
         
         seq = torch.zeros([1,seq_length,model.lstm_features])
-        for round_ in range(0, 5):
+        for round_ in range(1, 5):
             rob.set_phone_tilt_blocking(105, 100) #Angle phone forward
             print(f"Round: {round_}")
             start_time = datetime.datetime.now()
