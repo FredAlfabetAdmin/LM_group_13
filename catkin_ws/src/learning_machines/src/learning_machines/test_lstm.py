@@ -330,7 +330,7 @@ def run_lstm_classification(
         num_outputs=5, eval_=False):
     
     print('connected')
-    if True:
+    if False:
         import glob, os
         round_offset = 0
         # Clean the dataset dir
