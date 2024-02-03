@@ -204,7 +204,7 @@ def main(model_name = 'dev', seq_length = 16, batch_size = 16, learning_rate = 0
                     optimizer.step()
                     optimizer.zero_grad() #Very important! If we dont do this the gradients are not cleaned and we get gradient leaks
                     did_optim = True
-                    print(f'Epoch: {epoch}, step: {step}, mean_loss: {np.mean(epoch_loss)}, running loss: {epoch_loss[-1]}')
+                    print(f'Epoch: {epoch}, step: {step//batch_size}, mean_loss: {np.mean(epoch_loss)}, running loss: {epoch_loss[-1]}')
                 # Update the sequence
                 seq = seq_new.detach()
 
