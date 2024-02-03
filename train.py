@@ -168,7 +168,9 @@ def main(model_name = 'dev', seq_length = 16, batch_size = 16, learning_rate = 0
         epoch_loss, epoch_target_steps, epoch_round = [], [], []
         model_probs_0, model_probs_1, model_probs_2, model_probs_3, model_probs_4 = [], [], [], [], []
         # Load csv files from dataset in random order and play them.
-        for file_ in shuffle(glob.glob('./dataset/*.csv')): #Iterate over training rounds
+        files = glob.glob('./dataset/*.csv')
+        shuffle(files)
+        for file_ in files: #Iterate over training rounds
             round_ = re.findall(r'\d+', file_)[0]
             targets = pd.read_csv(file_)
             # Init sequence
@@ -202,6 +204,7 @@ def main(model_name = 'dev', seq_length = 16, batch_size = 16, learning_rate = 0
                     optimizer.step()
                     optimizer.zero_grad() #Very important! If we dont do this the gradients are not cleaned and we get gradient leaks
                     did_optim = True
+                    print(f'Epoch: {epoch}, step: {step}, mean_loss: {np.mean(epoch_loss)}, running loss: {epoch_loss[-1]}')
                 # Update the sequence
                 seq = seq_new.detach()
 
