@@ -162,6 +162,11 @@ def main(model_name = 'dev', seq_length = 16, batch_size = 16, learning_rate = 0
         'model_prob_4': [],
     }
 
+    total_num_steps = 0
+    for file_ in glob.glob('./dataset/*.csv'): #Iterate over training rounds
+        total_num_steps += pd.read_csv(file_).shape[0]
+    total_num_steps //= batch_size
+
     # Run x epochs (number of times through the dataset)
     for epoch in range(epochs):
         # For stats
@@ -191,6 +196,7 @@ def main(model_name = 'dev', seq_length = 16, batch_size = 16, learning_rate = 0
                 loss.backward()
 
                 # Stats
+                p = p.detach().cpu()
                 epoch_loss.append(loss.item())
                 epoch_target_steps.append(target.item())
                 model_probs_0.append(p[0])
@@ -206,7 +212,9 @@ def main(model_name = 'dev', seq_length = 16, batch_size = 16, learning_rate = 0
                     optimizer.step()
                     optimizer.zero_grad() #Very important! If we dont do this the gradients are not cleaned and we get gradient leaks
                     did_optim = True
-                    print(f'Epoch: {epoch}, step: {step//batch_size}, mean_loss: {np.mean(epoch_loss)}, running loss: {epoch_loss[-1]}')
+                    fulfilled_steps = (step//batch_size)/total_num_steps
+                    fill_line = '█' * int(fulfilled_steps*20) + ' ' * int(20 - (fulfilled_steps*20))
+                    print(f'Epoch: {epoch}, step: {step//batch_size}/{total_num_steps}, mean_loss: {np.mean(epoch_loss):.4f}, running loss: {epoch_loss[-1]:.4f} |{fill_line}|', end='\r')
                 # Update the sequence
                 seq = seq_new.detach()
 
@@ -214,7 +222,7 @@ def main(model_name = 'dev', seq_length = 16, batch_size = 16, learning_rate = 0
             if not did_optim:
                 optimizer.step()
                 optimizer.zero_grad() #Very important! If we dont do this the gradients are not cleaned and we get gradient leaks
-        
+        print()
         # More stats bullshit
         stats_df['epoch'].extend([epoch for _ in range(len(epoch_loss))]) #Prepend epoch number
         stats_df['losses'].extend(epoch_loss)
