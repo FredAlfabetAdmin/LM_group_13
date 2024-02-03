@@ -225,8 +225,8 @@ def main(model_name = 'dev', seq_length = 16, batch_size = 16, learning_rate = 0
         stats_df['model_prob_4'].extend(model_probs_4)
 
         # Then write the files
-        pd.DataFrame.from_dict(stats_df).to_csv(f'./trainings/{model_name}/checkpoints/{epoch}.ckpt', index=False) #Safe file writing, otherwise we could lose data
-        torch.save(model.state_dict(), f'./{epoch}.ckpt')
+        pd.DataFrame.from_dict(stats_df).to_csv(f'./trainings/{model_name}/stats.csv', index=False) #Safe file writing, otherwise we could lose data
+        torch.save(model.state_dict(), f'./trainings/{model_name}/checkpoints/{epoch}.ckpt')
 
     # Write the final trained model
     torch.save(model.state_dict(), f'./trainings/{model_name}/model.ckpt')
