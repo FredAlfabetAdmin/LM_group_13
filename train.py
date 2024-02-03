@@ -127,14 +127,14 @@ def main(model_name = 'dev', seq_length = 16, batch_size = 16, learning_rate = 0
         assert finetune_from is not None and checkpoint_num is not None, 'Error, forgot to set the checkpoint'
 
     if finetune_from is not None:
-        with open(f'./trainings/{finetune_from}/hparams.json', 'r'):
+        with open(f'./trainings/{finetune_from}/hparams.json', 'r') as file_:
             new_params = json.load(file_)
         hparams['num_classes'] = new_params['num_classes']
         hparams['lstm_hidden_size'] = new_params['lstm_hidden_size']
         hparams['lstm_num_layers'] = new_params['lstm_num_layers']
         hparams['bottle_neck_size'] = new_params['bottle_neck_size']
 
-    with open(f'./trainings/{model_name}/hparams.json', 'w'):
+    with open(f'./trainings/{model_name}/hparams.json', 'w') as file_:
         json.dump(hparams, file_)
     
     # Define model, loss fn and the optimizer

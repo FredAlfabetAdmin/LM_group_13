@@ -1,0 +1,1 @@
+{"model_name": "dev", "seq_length": 16, "batch_size": 16, "learning_rate": 0.005, "num_classes": 5, "epochs": 100, "device": "cuda:0", "lstm_hidden_size": 256, "lstm_num_layers": 1, "bottle_neck_size": 2048, "finetune_from": null, "checkpoint_num": null}
