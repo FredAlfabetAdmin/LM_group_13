@@ -170,13 +170,14 @@ def main(model_name = 'dev', seq_length = 16, batch_size = 16, learning_rate = 0
         # Load csv files from dataset in random order and play them.
         files = glob.glob('./dataset/*.csv')
         shuffle(files)
+        step = 0
         for file_ in files: #Iterate over training rounds
             round_ = re.findall(r'\d+', file_)[0]
             targets = pd.read_csv(file_)
             # Init sequence
             seq = torch.zeros([1,seq_length,model.lstm_features], requires_grad=True, device=device)
             # Play the path and let the model learn to take the right actions
-            for step, row in targets.iterrows():
+            for _, row in targets.iterrows():
                 did_optim = False
                 # Load image from dataset
                 img = get_img(read_img = row['image'])
@@ -200,6 +201,7 @@ def main(model_name = 'dev', seq_length = 16, batch_size = 16, learning_rate = 0
                 epoch_round.append(round_)
 
                 # Update model very batch_size of steps
+                step += 1
                 if step % batch_size == 0 and step != 0:
                     optimizer.step()
                     optimizer.zero_grad() #Very important! If we dont do this the gradients are not cleaned and we get gradient leaks
