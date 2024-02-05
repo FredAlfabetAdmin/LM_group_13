@@ -20,7 +20,7 @@ import numpy as np
 import joblib
 import cv2
 import math
-import pandas as pd
+# import pandas as pd
 
 def eucl_fn(point1, point2):
     return math.sqrt((point1[0]-point2[0])**2 + (point1[1]-point2[1])**2)
@@ -109,14 +109,15 @@ def move_robobo(movement, rob):
         rob.move_blocking(25, 50, 250)
     elif move_pr == 2: #Move right
         rob.move_blocking(50, 25, 250)
-    elif move_pr == 3: #Rotate Right
-        rob.move_blocking(50, -50, 125)
-    elif move_pr == 4: #Rotate Left
+    elif move_pr == 3: #Rotate Left
         rob.move_blocking(-50, 50, 125)
+    elif move_pr == 4: #Rotate Right
+        rob.move_blocking(50, -50, 125)
     return move_pr
 
 def evaluation(rob, model: nn.Module):
-    model.load_state_dict(torch.load('./model_49.ckpt'))
+    model.load_state_dict(torch.load('./models/model_3.ckpt', map_location=torch.device('cpu')))
+    print(sum(p.numel() for p in model.parameters() if p.requires_grad))
     model.eval()
     seq_length = 8
     with torch.no_grad():
@@ -327,7 +328,7 @@ def point_and_move(points, width, height, center):
 
 def run_lstm_classification(
         rob: IRobobo, 
-        num_outputs=5, eval_=False):
+        num_outputs=5, eval_=True):
     
     print('connected')
     if False:
@@ -395,7 +396,7 @@ def run_lstm_classification(
         return
     
     # Define optimizer for training
-    optimizer = optim.Adam(params=model.parameters(), lr=0.005)
+    optimizer = optim.Adam(params=model.parameters(), lr=0.01)
     model = train(rob, model, optimizer)
 
     torch.save(model.state_dict(), './models/model.ckpt')
